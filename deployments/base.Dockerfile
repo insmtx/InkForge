@@ -1,5 +1,5 @@
 # InkForge base runtime environment
-FROM mcr.microsoft.com/playwright:v1.40.0-focal
+FROM registry.yygu.cn/library/playwright:v1.40.0-focal
 
 # Install certificates and core utilities
 RUN apt-get update && \
