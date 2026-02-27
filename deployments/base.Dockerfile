@@ -6,8 +6,8 @@ RUN apt-get update && \
     apt-get install -y ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Install required browsers for Playwright
-RUN playwright install chromium
+# Install required browsers for Playwright 
+RUN npx playwright install chromium
 
 # Create non-root user for security
 RUN groupadd -r inkforge && useradd -r -g inkforge inkforge
