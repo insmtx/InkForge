@@ -1,0 +1,89 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Verify Go Version
+      run: go version
+
+    - name: Download Dependencies
+      run: go mod download
+
+    - name: Run Tests
+      run: go test -v ./...
+
+    - name: Build Binary
+      run: |
+        mkdir -p build
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -a -ldflags="-w -s -extldflags '-static'" -o build/inkforge ./cmd/inkforge
+
+  docker-build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-docker-action@v3
+      with:
+        version: v25.0.4
+
+    - name: Login to Registry
+      uses: docker/login-action@v3
+      with:
+        registry: registry.yygu.cn
+        username: ${{ secrets.REGISTRY_USER }}
+        password: ${{ secrets.REGISTRY_PASS }}
+
+    - name: Extract metadata for base image
+      id: base-meta
+      uses: docker/metadata-action@v5
+      with:
+        images: registry.yygu.cn/skills/inkforge
+        tags: |
+          type=raw,value=base
+
+    - name: Build and push base image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./deployments/base.Dockerfile
+        tags: ${{ steps.base-meta.outputs.tags }}
+        labels: ${{ steps.base-meta.outputs.labels }}
+        push: true
+
+    - name: Extract metadata for release image
+      id: release-meta
+      uses: docker/metadata-action@v5
+      with:
+        images: registry.yygu.cn/skills/inkforge
+        tags: |
+          type=ref,event=branch
+          type=sha,prefix={{branch}}-
+
+    - name: Build and push release image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./deployments/Dockerfile
+        tags: ${{ steps.release-meta.outputs.tags }}
+        labels: ${{ steps.release-meta.outputs.labels }}
+        push: true
+
+    - name: Logout from Registry
+      run: docker logout registry.yygu.cn
