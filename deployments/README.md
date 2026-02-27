@@ -4,13 +4,20 @@
 
 InkForge can be deployed using Docker containers for easy management and scaling.
 
-### Building the Docker Image
+The deployment consists of:
+- Base environment: `deployments/base.Dockerfile` - Contains the minimal Playwright environment
+- Application image: `Dockerfile` - Contains the build and runtime for InkForge
+
+### Building the Images
 
 ```bash
-# Build and run using docker compose
+# Build the base environment image (optional, for custom base)
+docker build -f deployments/base.Dockerfile -t inkforge-base .
+
+# Build and run using docker compose (builds main image)
 docker-compose up -d
 
-# Or build manually
+# Or build main image manually
 docker build -t inkforge .
 ```
 
@@ -22,6 +29,14 @@ docker run -p 8080:8080 inkforge
 
 # Run with custom port
 docker run -p 3000:8080 -e PORT=8080 inkforge
+
+# Run with custom environment variables
+docker run -p 8080:8080 \
+  -e PORT=8080 \
+  -e KATEX_ENABLED=true \
+  -e MERMAID_ENABLED=true \
+  -e MAX_CONTENT_LENGTH=2097152 \
+  inkforge
 ```
 
 ### Environment Variables
@@ -42,9 +57,18 @@ See the [docker-compose.yml](../docker-compose.yml) file for configuration examp
 
 The application provides a health check endpoint at `/api/v1/health` or `/health`.
 
+### Base Environment
+
+The `deployments/base.Dockerfile` provides a minimal, reusable Playwright environment with:
+- Playwright installed with Chromium browser
+- Minimal OS packages
+- Security-hardened non-root user
+- Optimized for headless rendering tasks
+
 ### Production Considerations
 
 - Use reverse proxy like nginx for SSL termination
 - Monitor resource usage as Playwright can consume considerable memory
 - Consider horizontal scaling for high-demand applications
 - Regular security updates to base images
+- Consider using multi-stage builds in CI/CD pipelines
