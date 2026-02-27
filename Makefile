@@ -4,7 +4,8 @@
 # Variables
 BINARY_NAME=inkforge
 DOCKER_REGISTRY=registry.yygu.cn/skills
-IMAGE_TAG ?= latest
+GIT_COMMIT ?= $(shell git rev-parse --short HEAD)
+IMAGE_TAG ?= $(GIT_COMMIT)
 BUILD_DIR ?= build
 
 # Go variables
