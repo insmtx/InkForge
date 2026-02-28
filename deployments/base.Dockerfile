@@ -26,7 +26,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" 
 RUN PLAYWRIGHT_DOWNLOAD_HOST=https://mirrors-1369730192.cos.ap-beijing.myqcloud.com ./inkforge install
 
 # Final stage - Create base image with all pre-installed dependencies
-FROM registry.yygu.cn/library/playwright:v1.40.0-focal
+FROM registry.yygu.cn/library/playwright:v1.57.0-focal
 
 # Install certificates and core utilities needed at runtime
 RUN apt-get update && \
