@@ -2,7 +2,9 @@
 # Multi-stage build to compile the application and create the final production image
 
 # Stage 1: Build the Go application
-FROM golang:1.24-bookworm AS builder
+FROM registry.yygu.cn/library/golang:1.24-bookworm AS builder
+
+ENV GOPROXY=https://goproxy.cn,direct
 
 WORKDIR /workspace
 

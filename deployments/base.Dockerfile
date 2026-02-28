@@ -1,6 +1,7 @@
 # InkForge base runtime environment
-FROM golang:1.24-bookworm AS installer
+FROM registry.yygu.cn/library/golang:1.24 AS installer
 
+ENV GOPROXY=https://goproxy.cn,direct
 # Install dependencies needed for playwright installation
 RUN apt-get update && \
     apt-get install -y ca-certificates curl git && \  
@@ -15,8 +16,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the source code needed for install command
-COPY cmd/ cmd/
-COPY internal/ internal/
+COPY ./ ./
 
 # Build the InkForge binary specifically to run the install command
 RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" -installsuffix cgo -o inkforge ./cmd/inkforge
