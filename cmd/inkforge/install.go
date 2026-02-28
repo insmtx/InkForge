@@ -24,7 +24,10 @@ func init() {
 func installEnvironment() {
 	logs.Infof("Installing Playwright browsers and dependencies...")
 
-	err := playwright.Install()
+	opt := &playwright.RunOptions{
+		Browsers: []string{"chromium", "chromium-headless-shell"},
+	}
+	err := playwright.Install(opt)
 	if err != nil {
 		logs.Errorf("Error installing Playwright: %v", err)
 		panic(err)

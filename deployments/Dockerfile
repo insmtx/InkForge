@@ -2,7 +2,7 @@
 # Multi-stage build to compile the application and create the final production image
 
 # Stage 1: Build the Go application
-FROM registry.yygu.cn/library/golang:1.24-bookworm AS builder
+FROM registry.yygu.cn/library/golang:1.24 AS builder
 
 ENV GOPROXY=https://goproxy.cn,direct
 
@@ -24,7 +24,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" 
 FROM registry.yygu.cn/skills/inkforge:base
 
 # Copy the compiled binary from the builder stage
-COPY --from=builder --chown=inkforge:inkforge /workspace/inkforge /app/inkforge
+COPY --from=builder /workspace/inkforge /app/inkforge
 
 # Set production health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \

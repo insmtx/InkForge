@@ -22,7 +22,8 @@ COPY ./ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" -installsuffix cgo -o inkforge ./cmd/inkforge
 
 # Execute the install command to prepare Playwright browsers and dependencies
-RUN ./inkforge install
+# RUN ./inkforge install
+RUN PLAYWRIGHT_DOWNLOAD_HOST=https://mirrors-1369730192.cos.ap-beijing.myqcloud.com ./inkforge install
 
 # Final stage - Create base image with all pre-installed dependencies
 FROM registry.yygu.cn/library/playwright:v1.40.0-focal
@@ -32,15 +33,8 @@ RUN apt-get update && \
     apt-get install -y ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Create non-root user for security
-RUN groupadd -r inkforge && useradd -r -g inkforge inkforge
-
 # Copy pre-installed Playwright cache from installer stage
-COPY --from=installer --chown=inkforge:inkforge /root/.cache /root/.cache
-
-# Set up cache directory with proper permissions for the app user
-RUN chown -R inkforge:inkforge /root/.cache && \
-    chmod -R 755 /root/.cache
+COPY --from=installer /root/.cache /root/.cache
 
 # Define working directory for the application
 WORKDIR /app

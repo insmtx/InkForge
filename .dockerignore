@@ -1,0 +1,6 @@
+deployments/
+.github/
+.git
+.gitignore
+.dockerignore
+README.md
