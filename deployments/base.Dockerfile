@@ -1,12 +1,11 @@
 # InkForge base runtime environment
-FROM golang:1.24-bookworm AS builder
+FROM golang:1.24-bookworm AS installer
 
-# Install the needed dependencies for Go build
+# Install dependencies needed for playwright installation
 RUN apt-get update && \
-    apt-get install -y ca-certificates curl git && \
+    apt-get install -y ca-certificates curl git && \  
     rm -rf /var/lib/apt/lists/*
 
-# Set up workspace for building the inkforge binary with install command
 WORKDIR /workspace
 
 # Copy go mod files
@@ -15,29 +14,17 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Copy the source code
-COPY . .
+# Copy the source code needed for install command
+COPY cmd/ cmd/
+COPY internal/ internal/
 
-# Build the InkForge binary with install command support
+# Build the InkForge binary specifically to run the install command
 RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" -installsuffix cgo -o inkforge ./cmd/inkforge
 
-# Builder stage for installing Playwright dependencies
-FROM golang:1.24-bookworm AS playwright-installer
-
-# Install dependencies needed for playwright installation
-RUN apt-get update && \
-    apt-get install -y ca-certificates curl && \  
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /tmp/playwright-install
-
-# Copy the built binary from the first stage 
-COPY --from=builder /workspace/inkforge ./
-
-# Run the install subcommand to prepare browsers and dependencies
+# Execute the install command to prepare Playwright browsers and dependencies
 RUN ./inkforge install
 
-# Final stage: copy the pre-installed Playwright cache to create the base image
+# Final stage - Create base image with all pre-installed dependencies
 FROM registry.yygu.cn/library/playwright:v1.40.0-focal
 
 # Install certificates and core utilities needed at runtime
@@ -49,7 +36,7 @@ RUN apt-get update && \
 RUN groupadd -r inkforge && useradd -r -g inkforge inkforge
 
 # Copy pre-installed Playwright cache from installer stage
-COPY --from=playwright-installer --chown=root:root /root/.cache /root/.cache
+COPY --from=installer --chown=inkforge:inkforge /root/.cache /root/.cache
 
 # Set up cache directory with proper permissions for the app user
 RUN chown -R inkforge:inkforge /root/.cache && \
