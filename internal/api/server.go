@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/insmtx/InkForge/internal/model"
+	"github.com/ygpkg/yg-go/logs"
 )
 
 // Server wraps the Gin engine with additional configuration
@@ -70,9 +70,9 @@ func (s *Server) Start() error {
 		IdleTimeout:  time.Duration(s.Config.IdleTimeout) * time.Second,
 	}
 
-	log.Printf("Starting InkForge server on %s", addr)
-	log.Printf("Max content length: %d bytes", s.Config.MaxContentLength)
-	log.Printf("Max image dimensions: %dx%d", s.Config.MaxImageWidth, s.Config.MaxImageHeight)
+	logs.Infof("Starting InkForge server on %s", addr)
+	logs.Infof("Max content length: %d bytes", s.Config.MaxContentLength)
+	logs.Infof("Max image dimensions: %dx%d", s.Config.MaxImageWidth, s.Config.MaxImageHeight)
 
 	return server.ListenAndServe()
 }
@@ -89,7 +89,7 @@ func (s *Server) StartTLS(certFile, keyFile string) error {
 		IdleTimeout:  time.Duration(s.Config.IdleTimeout) * time.Second,
 	}
 
-	log.Printf("Starting HTTPS InkForge server on %s", addr)
+	logs.Infof("Starting HTTPS InkForge server on %s", addr)
 
 	return server.ListenAndServeTLS(certFile, keyFile)
 }

@@ -3,9 +3,9 @@ package render
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/playwright-community/playwright-go"
+	"github.com/ygpkg/yg-go/logs"
 )
 
 // PlaywrightRenderer handles browser-based rendering using Playwright
@@ -43,7 +43,7 @@ func NewPlaywrightRenderer() (*PlaywrightRenderer, error) {
 		context: context,
 	}
 
-	log.Println("Successfully initialized Playwright renderer")
+	logs.Infof("Successfully initialized Playwright renderer")
 	return renderer, nil
 }
 
@@ -98,7 +98,7 @@ func (r *PlaywrightRenderer) Close() error {
 		return fmt.Errorf("errors during Playwright cleanup: %v", errs)
 	}
 
-	log.Println("Successfully closed Playwright renderer")
+	logs.Infof("Successfully closed Playwright renderer")
 	return nil
 }
 
