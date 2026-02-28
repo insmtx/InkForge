@@ -1,24 +1,14 @@
 # InkForge base runtime environment
-FROM registry.yygu.cn/library/playwright:v1.40.0-focal
+FROM golang:1.24-bookworm AS playwright-builder
 
-# Install certificates and core utilities
+# Install nodejs and other dependencies for playwright installation
 RUN apt-get update && \
-    apt-get install -y ca-certificates curl wget xz-utils git && \
+    apt-get install -y curl git ca-certificates xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# Create non-root user for security
-RUN groupadd -r inkforge && useradd -r -g inkforge inkforge
-
-# Temporarily install Go to prepare Go Playwright assets
-RUN wget -qO- https://golang.org/dl/go1.24.0.linux-amd64.tar.gz | tar xzf - -C /usr/local
-
-# Set up Go environment temporarily to run playwright install
-ENV GOROOT=/usr/local/go
-ENV PATH=${GOROOT}/bin:${PATH}
-
-# Create a temporary workspace for preparing playwright installation
-RUN mkdir -p /tmp/playwright-prep && cd /tmp/playwright-prep && \
-    go mod init playwright-prep && \
+# Install Playwright dependencies in the builder stage  
+WORKDIR /tmp/playwright-build
+RUN go mod init playwright-build && \
     go mod edit -require=github.com/playwright-community/playwright-go@latest && \
     go mod tidy && \
     echo 'package main' > main.go && \
@@ -31,12 +21,24 @@ RUN mkdir -p /tmp/playwright-prep && cd /tmp/playwright-prep && \
     echo '  } else {' >> main.go && \
     echo '    fmt.Println("Successfully installed Playwright")' >> main.go && \
     echo '  }' >> main.go && \
-    echo '}' >> main.go && \
-    go run main.go && \
-    rm -rf /tmp/playwright-prep
+    echo '}' >> main.go
 
-# Clean up Go installation (we don't need it in the final image but browsers remain cached)
-RUN rm -rf /usr/local/go
+# Build and run to pre-install the drivers/browsers
+RUN go run main.go
+
+# Final stage: copy the pre-installed Playwright cache to the base image
+FROM registry.yygu.cn/library/playwright:v1.40.0-focal
+
+# Install certificates and core utilities
+RUN apt-get update && \
+    apt-get install -y ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd -r inkforge && useradd -r -g inkforge inkforge
+
+# Copy pre-installed Playwright cache from builder stage
+COPY --from=playwright-builder --chown=root:root /root/.cache /root/.cache
 
 # Set up cache directory with proper permissions for the app user
 RUN chown -R inkforge:inkforge /root/.cache && \
