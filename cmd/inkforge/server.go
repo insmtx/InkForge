@@ -6,29 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/insmtx/InkForge/internal/api"
 	"github.com/insmtx/InkForge/internal/model"
-	"github.com/playwright-community/playwright-go"
 	"github.com/ygpkg/yg-go/logs"
-	"os"
-)
-
-var (
-	port string
-	host string
 )
 
 func StartServer() {
-	// Only attempt to install Playwright if needed (e.g., in development)
-	// In production environment (container), browsers should already be pre-installed
-	if _, err := os.Stat("/root/.cache/ms-playwright-go"); os.IsNotExist(err) {
-		// Cache directory doesn't exist, attempt installation
-		err := playwright.Install()
-		if err != nil {
-			logs.Errorf("Warning: Could not install Playwright: %v. Browsers may need to be pre-installed in the container.", err)
-		}
-	} else {
-		// Browsers are expected to be pre-installed in the base image
-		logs.Infof("Using pre-installed Playwright browsers from cache")
-	}
+	// Browsers are expected to be pre-installed in the base image via the install command
+	// If the cache directory is not present, this indicates a misconfiguration of the environment
+	logs.Infof("Using pre-installed Playwright browsers from cache")
 
 	config := GetServerConfig()
 
