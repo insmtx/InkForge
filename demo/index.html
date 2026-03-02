@@ -350,7 +350,9 @@ graph TD
                         body: JSON.stringify({
                             content: markdownInput.value,
                             title: "Debug HTML Preview",
-                            theme: themeSelect.value
+                            theme: themeSelect.value,
+                            width: 1200,  // Required by API even though HTML only
+                            height: 800   // Required by API even though HTML only
                         })
                     });
 
