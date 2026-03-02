@@ -234,67 +234,73 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		return nil, fmt.Errorf("failed to set viewport: %w", err)
 	}
 
-	// Set HTML content with fast approach but more realistic timeout for CDN resource loading
-	logs.Debugf("Setting HTML content (%d characters) with balanced speed", len(html))
+	// Set HTML content and allow sufficient time for proper rendering
+	logs.Debugf("Setting HTML content (%d characters) and preparing for complete rendering", len(html))
 
+	// Allow for complete page load including external resources
 	if err := page.SetContent(html, playwright.PageSetContentOptions{
-		WaitUntil: playwright.WaitUntilStateDomcontentloaded, // Fast but allows basic resources to load
-		Timeout:   playwright.Float(6000),                    // 6 seconds - allows CDN resources to load
+		WaitUntil: playwright.WaitUntilStateNetworkidle, // Ensure network resources are loaded
+		Timeout:   playwright.Float(15000),              // 15 seconds - allows time for CDN resources
 	}); err != nil {
-		logs.Warnf("Page content setting encountered issues: %v, continuing anyway", err)
-		// We continue to allow for partial rendering
+		logs.Warnf("Page content setting encountered issues, trying to continue: %v", err)
+		// Continue to render as much as possible
 	}
 
-	// Moderate-delay approach for rendering dependencies
-	logs.Info("Allowing CDN resources to load...")
-	page.WaitForTimeout(800) // Brief wait for basic resources to start loading
-
-	// Check for and trigger advanced features if present
-	hasMath := checkForMathExpressions(html)
-	hasMermaid := strings.Contains(html, "mermaid")
-
-	if hasMath {
-		logs.Info("Math detected, triggering KaTeX rendering...")
-		// Try to activate KaTeX if available
-		page.Evaluate(`() => {
-			if (window.renderMath) {
-				window.renderMath();
-			} else if (window.renderMathInElement) {
-				try {
-					renderMathInElement(document.body, {
-						delimiters: [
-							{left: "$$", right: "$$", display: true},
-							{left: "$", right: "$", display: false},
-							{left: "\\(", right: "\\)", display: false},
-							{left: "\\[", right: "\\]", display: true}
-						],
-						ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-						throwOnError: false
-					});
-				} catch(e) {
-					console.log("KaTeX rendering issue: ", e.message);
-				}
-			}
-		}`)
+	// Wait for content DOM to be ready
+	logs.Info("Waiting for DOM to load completely...")
+	_, err = page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
+		Timeout: playwright.Float(2000),
+	})
+	if err != nil {
+		logs.Warnf("Body element not ready within timeout: %v", err)
 	}
 
-	if hasMermaid {
-		logs.Info("Mermaid diagram detected, triggering rendering...")
-		// Trigger Mermaid rendering
-		page.Evaluate(`() => {
-			if (window.mermaid && window.mermaid.init) {
-				try {
-					mermaid.init();
-				} catch(e) {
-					console.log("Mermaid rendering issue: ", e.message);
-				}
-			}
-		}`)
+	// Always ensure KaTeX and mermaid are properly initialized
+	logs.Info("Ensuring rendering services are available...")
+
+	// Wait briefly for CDN JS to initialize then try to render whatever is on the page
+	page.WaitForTimeout(1000)
+
+	// Always try to trigger KaTeX and any other rendering engines regardless of content
+	_, mathErr := page.Evaluate(`() => {
+		// Ensure math rendering happens even if not in current content
+		if (window.renderMath) {
+			window.renderMath();
+		} else if (window.renderMathInElement && document.body) {
+			window.renderMathInElement(document.body, {
+				delimiters: [
+					{left: "$$", right: "$$", display: true},
+					{left: "$", right: "$", display: false},
+					{left: "\\\\(", right: "\\\\)", display: false},
+					{left: "\\\\[[", right: "\\\\]]", display: true}
+				],
+				ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+				throwOnError: false
+			});
+		}
+	}`)
+	if mathErr != nil {
+		logs.Warnf("Error during math rendering: %v", mathErr)
 	}
 
-	// Allow some time for client-side rendering to complete
-	logs.Info("Waiting for rendering to complete...")
-	page.WaitForTimeout(2000) // Wait for rendering to occur
+	// Trigger mermaid as well if available
+	_, mermaidErr := page.Evaluate(`() => {
+		if (window.mermaid && typeof window.mermaid.run === 'function') {
+			window.mermaid.run({
+				querySelector: '.mermaid',
+				render: window.mermaid.render
+			});
+		} else if (window.mermaid && typeof window.mermaid.init === 'function') {
+			window.mermaid.init();
+		}
+	}`)
+	if mermaidErr != nil {
+		logs.Warnf("Error during diagram rendering: %v", mermaidErr)
+	}
+
+	// Allow sufficient time for all client-side rendering
+	logs.Info("Waiting for complete rendering...")
+	page.WaitForTimeout(4000) // More time for client-side rendering to complete
 
 	// Optimize screenshot capture settings
 	var screenshotOptions playwright.PageScreenshotOptions

@@ -106,14 +106,14 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 	}
 	logs.Infof("Markdown converted to HTML, HTML length: %d chars", len(htmlContent))
 
-	// Prepare template data
+	// Prepare template data - ensure all features are enabled regardless of configuration
 	templateData := map[string]interface{}{
 		"Title":          req.Title,
 		"Content":        template.HTML(htmlContent),
 		"CSS":            req.CSS,
 		"Theme":          req.Theme,
-		"KaTeXEnabled":   e.options.EnableKaTeX,
-		"MermaidEnabled": e.options.EnableMermaid,
+		"KaTeXEnabled":   true, // Always enabled for proper math rendering
+		"MermaidEnabled": true, // Always enabled for proper diagram rendering
 	}
 
 	var buf bytes.Buffer
