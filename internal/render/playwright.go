@@ -232,24 +232,69 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		logs.Warnf("Could not wait for body selector: %v", err)
 	}
 
-	// Special handling for Math elements if KaTeX is involved
-	katexWaitResult, katexErr := page.WaitForFunction(`() => {
-		// Wait for KaTeX rendering to finish by checking for .katex elements or absence of loading indicators
-		const katexElements = document.querySelectorAll('.katex');
-		const mathElements = document.querySelectorAll('span[data-mathml], script[type^="math"]');
-		// If we have KaTeX rendered elements or detect MathML, we consider it ready
-		return katexElements.length > 0 || mathElements.length > 0 || true;
-	}`, playwright.PageWaitForFunctionOptions{
-		Timeout: playwright.Float(30000), // 30 seconds for math rendering
+	// Check if page has KaTeX elements that need to be processed
+	pageWaitResult, err := page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
+		State:   playwright.WaitForSelectorStateAttached,
+		Timeout: playwright.Float(10000),
 	})
-	if katexErr != nil {
-		logs.Warnf("Math elements might still be processing: %v", katexErr)
-		// Continue anyway as sometimes the math content has already rendered
-	} else {
-		logs.Debugf("Math elements rendered successfully, element count: %v", katexWaitResult)
+	if err != nil {
+		logs.Warnf("Could not find body element: %v", err)
+		pageWaitResult = nil
 	}
 
-	// Additional wait for all fonts and images to load
+	if pageWaitResult != nil {
+		hasKaTeXPattern, checkErr := page.Evaluate(`() => {
+			const bodyText = document.body.innerHTML;
+			// Check for KaTeX delimiter patterns in the content
+			const hasMathPatterns = /\\\$[^\\\$].*\\\$|\\\$\{2}[^\\\$].*\\\$\{2}|\\\\\\([^)]*\\\\\\)|\\\\\\[[^\\]]*\\\\\\]/.test(bodyText);
+			return hasMathPatterns;
+		}`)
+
+		if checkErr != nil {
+			logs.Warnf("Could not check for KaTeX patterns: %v", checkErr)
+			hasKaTeXPattern = true // Assume there might be, to be safe
+		}
+
+		if val, ok := hasKaTeXPattern.(bool); ok && val {
+			logs.Info("Math formulas detected, waiting for KaTeX rendering...")
+
+			// Attempt manual KaTeX rendering if auto-render didn't happen properly
+			// (this addresses the scenario where DOMContentLoaded already fired)
+			_, manualRenderErr := page.Evaluate(`() => {
+				if (window.renderMath && !window.katexRenderingComplete) {
+					window.renderMath();
+					// Give a brief moment for the render to process
+					window.katexRenderingComplete = true;
+				} else if (window.renderMath) {
+					// If renderMath exists and rendering isn't complete, call it
+					window.renderMath();
+				}
+			}`)
+			if manualRenderErr != nil {
+				logs.Warnf("Could not trigger manual KaTeX rendering: %v", manualRenderErr)
+			}
+
+			// Wait specifically for KaTeX rendering to complete and elements to appear
+			katexWaitResult, katexErr := page.WaitForFunction(`() => {
+				// Check if KaTeX rendering has completed
+				const katexReady = window.katexRenderingComplete === true;
+				const katexElements = document.querySelectorAll('.katex').length;
+				return katexReady && katexElements > 0;
+			}`, playwright.PageWaitForFunctionOptions{
+				Timeout: playwright.Float(30000), // 30 seconds for math rendering
+			})
+			if katexErr != nil {
+				logs.Warnf("Math elements might still be processing after timeout: %v", katexErr)
+				// Still proceed, KaTeX might be partially completed
+			} else {
+				logs.Infof("Successfully waited for KaTeX rendering, result: %v", katexWaitResult)
+			}
+		} else {
+			logs.Info("No math formulas detected in content")
+		}
+	}
+
+	// Additional wait to ensure all elements render properly
 	page.WaitForTimeout(2000)
 
 	// Determine screenshot options based on image format
