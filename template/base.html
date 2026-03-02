@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
 
-    <!-- KaTeX CSS - always enabled -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATsiXqtIuwBpz/A4QppE6GJIY/GfU0/NIYiRcaHzRzJZMw/44htA8ZeM" crossorigin="anonymous">
-
-    <!-- Syntax highlighting CSS for code blocks -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+    <!-- KaTeX CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    
+    <!-- Prism CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
 
     <!-- Include custom CSS if provided -->
     {{if .CSS}}
@@ -19,20 +19,13 @@
 
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
             padding: 20px;
             max-width: 800px;
             margin: 0 auto;
             background-color: #fff;
             color: #333;
-        }
-
-        @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #1a1a1a;
-                color: #e6e6e6;
-            }
         }
 
         {{if eq .Theme "dark"}}
@@ -50,7 +43,7 @@
             background-color: #f5f5f5;
             padding: 2px 4px;
             border-radius: 3px;
-            font-family: 'Monaco', 'Consolas', 'Ubuntu Mono', monospace;
+            font-family: 'Monaco', 'Consolas', monospace;
         }
 
         pre {
@@ -93,130 +86,111 @@
 <body>
     {{.Content}}
 
-    <!-- Scripts to run after content is loaded -->
-    
-    <!-- Prism for code syntax highlighting - always enabled -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
-    
-    <!-- Execute syntax highlighting immediately -->
+    <!-- Load libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-go.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+    <!-- Synchronous rendering -->
     <script>
-        // Highlight all code blocks as soon as this script runs
-        if (window.Prism) {
+    (function() {
+        window._renderLog = [];
+        function log(msg) {
+            window._renderLog.push(msg);
+            console.log('[RENDER] ' + msg);
+        }
+        
+        log('Start');
+
+        // STEP 1: KaTeX - render immediately
+        log('KaTeX...');
+        if (typeof renderMathInElement === 'function') {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: "$$", right: "$$", display: true},
+                    {left: "$", right: "$", display: false},
+                    {left: "\\(", right: "\\)", display: false},
+                    {left: "\\[", right: "\\]", display: true}
+                ],
+                ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                throwOnError: false
+            });
+        }
+        log('KaTeX: ' + document.querySelectorAll('.katex').length);
+
+        // STEP 2: Prism - highlight immediately
+        log('Prism...');
+        if (typeof Prism !== 'undefined') {
             Prism.highlightAll();
         }
-    </script>
+        log('Prism: ' + document.querySelectorAll('.token').length);
 
-    <!-- KaTeX for math rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-9APjkHfWdCS7/LZCxHXpdrHue8g7/Bmw62h5SlZoju5ywJm0F0TqS1N8QXtK7a4p" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-y52rzLp0DgByN8NFGEivcw0/x584V4CK/EFLysqqMJFJ0C9jZ85EMO1csngCOmXmoiU" crossorigin="anonymous"></script>
-    
-    <!-- Initialize KaTeX after content is processed -->
-    <script>
-      document.addEventListener("DOMContentLoaded", function() {
-        renderMathInElement(document.body, {
-          delimiters: [
-            {left: "$$", right: "$$", display: true},
-            {left: "$", right: "$", display: false},
-            {left: "\\(", right: "\\)", display: false},
-            {left: "\\[", right: "\\]", display: true}
-          ],
-          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
-        });
+        // STEP 3: Mermaid
+        log('Mermaid...');
         
-        // Mark that KaTeX rendering has started
-        if (!window.renderingSteps) window.renderingSteps = [];
-        window.renderingSteps.push({step: 'katex', time: Date.now()});
-      });
-    </script>
+        function renderMermaid() {
+            if (typeof mermaid === 'undefined') {
+                log('Mermaid not loaded');
+                return;
+            }
 
-    <!-- Mermaid for diagrams - always enabled -->
-    <!-- IMPORTANT: Need a different strategy for Mermaid. Check for any `pre code` blocks with `language-mermaid` -->
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
-    <script>
-      // Initialize Mermaid
-      mermaid.initialize({ 
-        startOnLoad: false, 
-        theme: '{{.Theme}}',
-        securityLevel: 'loose', 
-        fontFamily: 'inherit' 
-      });
-      
-      // Custom function to render Mermaid diagrams after page is loaded
-      function renderMermaidDiagram() {
-        const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
-        
-        if (mermaidCodeBlocks.length > 0) {
-          mermaidCodeBlocks.forEach(function(codeBlock, index) {
-            const parentPre = codeBlock.parentElement;
-            const mermaidCode = codeBlock.textContent.trim();
-            
-            // Create a target container for the mermaid SVG
-            const containerDiv = document.createElement('div');
-            containerDiv.className = 'mermaid-diagram';
-            containerDiv.id = `mermaid-diagram-${index}`;
-            
-            // Insert the container directly after the pre element (replacing it)
-            parentPre.parentNode.insertBefore(containerDiv, parentPre.nextSibling);
-            
-            // Hide the original code block
-            parentPre.style.display = 'none';
-            
-            // Render the mermaid chart into the new container
-            mermaid.render(
-              `my-svg-${index}`,
-              mermaidCode, 
-              function(svgCode) {
-                  containerDiv.innerHTML = svgCode;
-                  
-                  // Mark that Mermaid rendering has happened for this diagram
-                  if (!window.renderingSteps) window.renderingSteps = [];
-                  window.renderingSteps.push({step: 'mermaid-'+index, time: Date.now(), code: mermaidCode});
-                  
-                  // Optional: set a completion flag if this is the last diagram
-                  if (index == mermaidCodeBlocks.length - 1) {
-                    window.mermaidRenderingComplete = true;
-                  }
-              }
-            );
-          });
-        } else {
-          // If no Mermaid blocks, mark it as done
-          if (!window.renderingSteps) window.renderingSteps = [];
-          window.renderingSteps.push({step: 'mermaid-none', time: Date.now()});
-          window.mermaidRenderingComplete = true;
+            mermaid.initialize({ 
+                startOnLoad: false, 
+                theme: '{{.Theme}}' || 'default',
+                securityLevel: 'loose'
+            });
+
+            // Find all mermaid code blocks in pre code.language-mermaid format
+            var blocks = document.querySelectorAll('pre code.language-mermaid');
+            log('Mermaid blocks: ' + blocks.length);
+
+            if (blocks.length === 0) {
+                log('No mermaid');
+                return;
+            }
+
+            // For each block, replace with div.mermaid and use mermaid.run
+            blocks.forEach(function(block, i) {
+                var pre = block.parentElement;
+                var code = block.textContent.trim();
+                
+                // Create mermaid div
+                var div = document.createElement('div');
+                div.className = 'mermaid';
+                div.id = 'mermaid-' + i;
+                div.textContent = code;  // Mermaid reads from textContent
+                
+                // Replace pre with div
+                pre.parentNode.replaceChild(div, pre);
+            });
+
+            // Use mermaid.run to render all .mermaid elements
+            mermaid.run({
+                querySelector: '.mermaid'
+            }).then(function(results) {
+                log('Mermaid rendered: ' + results.length);
+            }).catch(function(err) {
+                log('Mermaid error: ' + err.message);
+            });
         }
-      }
-      
-      if (document.readyState === 'loading') {
-        document.addEventListener("DOMContentLoaded", renderMermaidDiagram);
-      } else {
-        // If already loaded, run directly
-        renderMermaidDiagram();
-      }
-    </script>
-    
-    <!-- Completion marker to help Playwright know when rendering is finished -->
-    <script>
-      // Add this for Playwright to know when all rendering is done
-      window.allRenderingComplete = false;
-      
-      // Check periodically if all types of rendering are complete
-      setInterval(function() {
-        const katexExists = document.querySelector('.katex') !== null;
-        const syntaxHighlighted = document.querySelectorAll('.token').length > 0;
-        const mermaidDone = window.mermaidRenderingComplete || false;
-        
-        if (katexExists && syntaxHighlighted && mermaidDone) {
-          window.allRenderingComplete = true;
-          
-          // Add a visible completion marker for Playwright to detect
-          const completeMarker = document.createElement('div');
-          completeMarker.id = 'rendering-complete';
-          completeMarker.style.display = 'none'; // Keep it hidden
-          document.body.appendChild(completeMarker);
-        }
-      }, 200);
+
+        renderMermaid();
+
+        // Mark complete after a delay
+        setTimeout(function() {
+            var marker = document.createElement('div');
+            marker.id = 'render-complete';
+            document.body.appendChild(marker);
+            log('Done');
+        }, 2000);
+
+    })();
     </script>
 </body>
 

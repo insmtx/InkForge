@@ -262,32 +262,64 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 	// Wait for all rendering to complete before taking screenshot
 	logs.Info("Waiting for all rendering (KaTeX, syntax highlighting, Mermaid) to complete...")
 
-	allRenderingCompleteResult, renderingErr := page.WaitForFunction(
-		`() => {
-			// Wait for the special marker added by our template that indicates all rendering is complete
-			const katexDone = document.querySelectorAll('.katex').length > 0;
-			const syntaxDone = document.querySelectorAll('.token').length > 0 || document.querySelectorAll('pre code[class*="language-"].token').length > 0;
-			const mermaidDone = document.querySelectorAll('.mermaid-diagram').length > 0 || document.querySelector('#rendering-complete') !== null;
-			const allDone = document.querySelector('#rendering-complete') !== null;
-			
-			return allDone;
-		}`,
-		playwright.PageWaitForFunctionOptions{
-			Timeout: playwright.Float(20000), // Total timeout to wait for all
-		})
+	// First check the status
+	allRenderingCompleteResult, renderingErr := page.Evaluate(`() => {
+		const katexCount = document.querySelectorAll('.katex').length;
+		const prismTokens = document.querySelectorAll('.token').length;
+		const mermaidSVG = document.querySelectorAll('.mermaid svg').length;
+		const marker = document.getElementById('render-complete');
+		const hasMermaidContent = document.querySelectorAll('pre code.language-mermaid').length > 0;
+		
+		return {
+			katex: katexCount,
+			prism: prismTokens,
+			mermaidSVG: mermaidSVG,
+			marker: marker !== null,
+			hasMermaidContent: hasMermaidContent,
+			log: window.renderLog || []
+		};
+	}`)
 
 	if renderingErr != nil {
-		logs.Warnf("Rendering may not have fully completed: %v", renderingErr)
-		logs.Info("Continuing anyway to avoid infinite wait, but image might have missing parts")
-		// Still continue even if timeout, this should prevent hanging
+		logs.Warnf("Error checking rendering status: %v", renderingErr)
 	} else {
-		logs.Info("All rendering completed, ready to capture screenshot")
-		logs.Debugf("All rendering completion result: %v", allRenderingCompleteResult)
+		logs.Infof("Initial rendering status: %+v", allRenderingCompleteResult)
 	}
 
-	// Final stability wait to ensure visuals are fully rendered
-	logs.Info("Additional wait for visual stability...")
-	page.WaitForTimeout(2000)
+	// Wait for completion marker OR all elements rendered
+	_, waitErr := page.WaitForFunction(
+		`() => {
+			// Check for completion marker first
+			if (document.getElementById('render-complete')) {
+				return true;
+			}
+			
+			// Check individual rendering results
+			const hasKatex = document.querySelectorAll('.katex').length > 0;
+			const hasPrism = document.querySelectorAll('.token').length > 0;
+			const hasMermaid = document.querySelectorAll('.mermaid svg').length > 0;
+			const hasMermaidContent = document.querySelectorAll('pre code.language-mermaid').length > 0;
+			
+			// If no mermaid content, just need katex + prism
+			if (!hasMermaidContent) {
+				return hasKatex && hasPrism;
+			}
+			
+			// If mermaid content exists, need mermaid to render too
+			return hasKatex && hasPrism && hasMermaid;
+		}`,
+		playwright.PageWaitForFunctionOptions{
+			Timeout: playwright.Float(25000),
+		})
+
+	if waitErr != nil {
+		logs.Warnf("Warning: Rendering wait error: %v", waitErr)
+	} else {
+		logs.Info("Rendering complete - all elements detected")
+	}
+
+	// Additional brief wait for any final visual updates
+	page.WaitForTimeout(500)
 
 	// Optimize screenshot capture settings
 	var screenshotOptions playwright.PageScreenshotOptions
