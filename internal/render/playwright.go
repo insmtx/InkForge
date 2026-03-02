@@ -234,30 +234,28 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		return nil, fmt.Errorf("failed to set viewport: %w", err)
 	}
 
-	// Set HTML content and allow sufficient time for proper rendering
-	logs.Debugf("Setting HTML content (%d characters) and preparing for complete rendering", len(html))
+	// Set HTML content - use domcontentloaded to avoid CDN timeout issues
+	logs.Debugf("Setting HTML content (%d characters)", len(html))
 
-	// Allow for complete page load including external resources
 	if err := page.SetContent(html, playwright.PageSetContentOptions{
-		WaitUntil: playwright.WaitUntilStateNetworkidle, // Ensure network resources are loaded
-		Timeout:   playwright.Float(15000),              // 15 seconds - allows time for CDN resources
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded, // Faster, doesn't wait for all CDN
+		Timeout:   playwright.Float(10000),
 	}); err != nil {
-		logs.Warnf("Page content setting encountered issues, trying to continue: %v", err)
-		// Continue to render as much as possible
+		logs.Warnf("Page content setting error: %v", err)
 	}
 
-	// Wait for content DOM to be fully loaded and ready
-	logs.Info("Waiting for DOM to load completely...")
+	// Wait for body to exist
+	logs.Info("Waiting for body element...")
 	_, err = page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
 		Timeout: playwright.Float(3000),
 	})
 	if err != nil {
-		logs.Warnf("Body element not ready within timeout: %v", err)
+		logs.Warnf("Body element not ready: %v", err)
 	}
 
-	// Wait for CDN JS dependencies to load
-	logs.Info("Waiting for CDN resources to initialize...")
-	page.WaitForTimeout(2000)
+	// Wait for scripts to load - give CDN time to load
+	logs.Info("Waiting for CDN scripts to load...")
+	page.WaitForTimeout(3000)
 
 	// Wait for all rendering to complete before taking screenshot
 	logs.Info("Waiting for all rendering (KaTeX, syntax highlighting, Mermaid) to complete...")
