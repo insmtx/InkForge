@@ -246,7 +246,7 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		// Continue to render as much as possible
 	}
 
-	// Wait for content DOM to be ready
+	// Wait for content DOM to be fully loaded and ready
 	logs.Info("Waiting for DOM to load completely...")
 	_, err = page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
 		Timeout: playwright.Float(3000),
@@ -255,72 +255,39 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		logs.Warnf("Body element not ready within timeout: %v", err)
 	}
 
-	// Ensure CDN JS dependencies are loaded
-	logs.Info("Waiting for CDN resources to load...")
-	page.WaitForTimeout(1500)
+	// Wait for CDN JS dependencies to load
+	logs.Info("Waiting for CDN resources to initialize...")
+	page.WaitForTimeout(2000)
 
-	// Wait for KaTeX rendering to complete by checking our custom completion marker
-	logs.Info("Waiting for KaTeX rendering to complete...")
-	katexResult, katexErr := page.WaitForFunction(
+	// Wait for all rendering to complete before taking screenshot
+	logs.Info("Waiting for all rendering (KaTeX, syntax highlighting, Mermaid) to complete...")
+
+	allRenderingCompleteResult, renderingErr := page.WaitForFunction(
 		`() => {
-			// Check multiple conditions for KaTeX completion
-			return (window.katexRenderingComplete === true) || 
-			       (document.querySelectorAll('.katex').length > 0) ||
-			       ((Date.now() - startTime) > 10000); // 10 second maximum wait
+			// Wait for the special marker added by our template that indicates all rendering is complete
+			const katexDone = document.querySelectorAll('.katex').length > 0;
+			const syntaxDone = document.querySelectorAll('.token').length > 0 || document.querySelectorAll('pre code[class*="language-"].token').length > 0;
+			const mermaidDone = document.querySelectorAll('.mermaid-diagram').length > 0 || document.querySelector('#rendering-complete') !== null;
+			const allDone = document.querySelector('#rendering-complete') !== null;
+			
+			return allDone;
 		}`,
 		playwright.PageWaitForFunctionOptions{
-			Timeout: playwright.Float(10000),
+			Timeout: playwright.Float(20000), // Total timeout to wait for all
 		})
 
-	if katexErr != nil {
-		logs.Warnf("KaTeX rendering timeout or error: %v", katexErr)
+	if renderingErr != nil {
+		logs.Warnf("Rendering may not have fully completed: %v", renderingErr)
+		logs.Info("Continuing anyway to avoid infinite wait, but image might have missing parts")
+		// Still continue even if timeout, this should prevent hanging
 	} else {
-		logs.Debugf("KaTeX rendering completion result: %v", katexResult)
+		logs.Info("All rendering completed, ready to capture screenshot")
+		logs.Debugf("All rendering completion result: %v", allRenderingCompleteResult)
 	}
 
-	// Wait specifically for syntax highlighting, give Prism time to process
-	logs.Info("Waiting for Prism syntax highlighting to complete...")
-	prismResult, prismErr := page.WaitForFunction(
-		`() => {
-			// Check for any element that was highlighted by Prism (has .token class)
-			return (document.querySelectorAll('pre code[class*="lang-"]').length > 0) ||
-			       (document.querySelectorAll('pre code[class*="language-"]').length > 0) ||
-			       (document.querySelectorAll('.token').length > 0) ||
-			       ((Date.now() - startTime) > 5000); // 5 second maximum wait
-		}`,
-		playwright.PageWaitForFunctionOptions{
-			Timeout: playwright.Float(5000),
-		})
-
-	if prismErr != nil {
-		logs.Warnf("Prism highlighting timeout or error: %v", prismErr)
-	} else {
-		logs.Debugf("Prism highlighting completion result: %v", prismResult)
-	}
-
-	// Wait for Mermaid diagrams to render by looking for SVG content or completed markers
-	logs.Info("Waiting for Mermaid diagrams to render...")
-	mermaidResult, mermaidErr := page.WaitForFunction(
-		`() => {
-			// Check for any SVG elements (from Mermaid rendering), or Mermaid-specific classes
-			return (document.querySelectorAll('svg').length > 0) ||
-			       (document.querySelectorAll('.mermaid-diagram').length > 0) ||
-			       (document.querySelectorAll('.mermaid svg').length > 0) ||
-			       ((Date.now() - startTime) > 15000); // 15 second maximum wait for diagrams
-		}`,
-		playwright.PageWaitForFunctionOptions{
-			Timeout: playwright.Float(15000),
-		})
-
-	if mermaidErr != nil {
-		logs.Warnf("Mermaid rendering timeout or error: %v", mermaidErr)
-	} else {
-		logs.Debugf("Mermaid rendering completion result: %v", mermaidResult)
-	}
-
-	// Additional safety wait for any remaining processing to finish
-	logs.Info("Waiting final time for renders to stabilize...")
-	page.WaitForTimeout(2000) // More time for visual stabilization
+	// Final stability wait to ensure visuals are fully rendered
+	logs.Info("Additional wait for visual stability...")
+	page.WaitForTimeout(2000)
 
 	// Optimize screenshot capture settings
 	var screenshotOptions playwright.PageScreenshotOptions

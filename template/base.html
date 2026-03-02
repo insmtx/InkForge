@@ -9,8 +9,8 @@
     <!-- KaTeX CSS - always enabled -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATsiXqtIuwBpz/A4QppE6GJIY/GfU0/NIYiRcaHzRzJZMw/44htA8ZeM" crossorigin="anonymous">
 
-    <!-- Code syntax highlight CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" integrity="sha512-P9tLXQRiU2JW665Y/PAFYbMw8QbD7+Zr8Rq+rbJ/YHQqdgZQqT6rKB/xQ+wQtpFE9pSMjY28Jt5fl9J+Y9cQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Syntax highlighting CSS for code blocks -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
 
     <!-- Include custom CSS if provided -->
     {{if .CSS}}
@@ -93,164 +93,130 @@
 <body>
     {{.Content}}
 
-    <!-- KaTeX JS - always enabled -->
+    <!-- Scripts to run after content is loaded -->
+    
+    <!-- Prism for code syntax highlighting - always enabled -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    
+    <!-- Execute syntax highlighting immediately -->
+    <script>
+        // Highlight all code blocks as soon as this script runs
+        if (window.Prism) {
+            Prism.highlightAll();
+        }
+    </script>
+
+    <!-- KaTeX for math rendering -->
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-9APjkHfWdCS7/LZCxHXpdrHue8g7/Bmw62h5SlZoju5ywJm0F0TqS1N8QXtK7a4p" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-y52rzLp0DgByN8NFGEivcw0/x584V4CK/EFLysqqMJFJ0C9jZ85EMO1csngCOmXmoiU" crossorigin="anonymous"></script>
+    
+    <!-- Initialize KaTeX after content is processed -->
     <script>
-        // Global marker to indicate rendering completion
-        window.katexRenderingComplete = false;
-        
-        // Ensure renderMathInElement is available before using it
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof renderMathInElement !== 'undefined') {
-                renderMathInElement(document.body, {
-                    delimiters: [
-                        {left: "$$", right: "$$", display: true},
-                        {left: "$", right: "$", display: false},
-                        {left: "\\(", right: "\\)", display: false},
-                        {left: "\\[", right: "\\]", display: true}
-                    ],
-                    ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-                    throwOnError: false
-                });
-                
-                // Check if rendering finished
-                setTimeout(() => {
-                    if (document.querySelector('.katex') !== null) {
-                        window.katexRenderingComplete = true;
-                    }
-                }, 500);
-            } else {
-                window.katexRenderingComplete = true; // If KaTeX not available, just mark as done
-            }
+      document.addEventListener("DOMContentLoaded", function() {
+        renderMathInElement(document.body, {
+          delimiters: [
+            {left: "$$", right: "$$", display: true},
+            {left: "$", right: "$", display: false},
+            {left: "\\(", right: "\\)", display: false},
+            {left: "\\[", right: "\\]", display: true}
+          ],
+          ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
         });
         
-        // As fallback, if DOM already loaded
-        if (document.readyState === 'interactive' || document.readyState === 'complete') {
-            if (typeof renderMathInElement !== 'undefined') {
-                setTimeout(() => {
-                    renderMathInElement(document.body, {
-                        delimiters: [
-                            {left: "$$", right: "$$", display: true},
-                            {left: "$", right: "$", display: false},
-                            {left: "\\(", right: "\\)", display: false},
-                            {left: "\\[", right: "\\]", display: true}
-                        ],
-                        ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-                        throwOnError: false
-                    });
-                    
-                    setTimeout(() => {
-                        if (document.querySelector('.katex') !== null) {
-                            window.katexRenderingComplete = true;
-                        }
-                    }, 500);
-                }, 50);
-            } else {
-                window.katexRenderingComplete = true;
-            }
-        }
+        // Mark that KaTeX rendering has started
+        if (!window.renderingSteps) window.renderingSteps = [];
+        window.renderingSteps.push({step: 'katex', time: Date.now()});
+      });
     </script>
 
-    <!-- Prism JS for code highlighting - always enabled -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js" integrity="sha512-YtIRpBM38R7y2FE+YL6LUjYUXX5JWsQzqP4HSu6i1GfNLRoeXe0ICUjwKJiPS5PuYy84zB/WY78c7gbB7H0w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" integrity="sha512-SkmE2RsZqJa+qP6lgBcD+W05hgYqNvKtDb+6MWCibxJL56a3R5rZPnCPiUfXWjw7FzC+ef2yVe3wcC4/7q30Q/" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-    <!-- Apply highlighting to all code blocks immediately after DOM loads -->
-    <script>
-        if (document.readyState === 'loading') {
-            document.addEventListener("DOMContentLoaded", function() {
-                // Delay slightly to ensure content is in place
-                setTimeout(() => {
-                    if (window.Prism) {
-                        window.Prism.highlightAll();
-                    }
-                }, 50); 
-            });
-        } else {
-            setTimeout(() => {
-                if (window.Prism) {
-                    window.Prism.highlightAll();
-                }
-            }, 50);
-        }
-    </script>
-
-    <!-- Mermaid JS - always enabled -->
+    <!-- Mermaid for diagrams - always enabled -->
+    <!-- IMPORTANT: Need a different strategy for Mermaid. Check for any `pre code` blocks with `language-mermaid` -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
     <script>
-        // Manually configure and initialize Mermaid
-        mermaid.initialize({ 
-            startOnLoad: false,  // Disable automatic start to have more control 
-            theme: '{{.Theme}}',
-            securityLevel: 'loose',
-            fontFamily: 'inherit',
-            fontSize: '14px'
-        });
+      // Initialize Mermaid
+      mermaid.initialize({ 
+        startOnLoad: false, 
+        theme: '{{.Theme}}',
+        securityLevel: 'loose', 
+        fontFamily: 'inherit' 
+      });
+      
+      // Custom function to render Mermaid diagrams after page is loaded
+      function renderMermaidDiagram() {
+        const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
         
-        // Initialize mermaid after DOM is ready and KaTeX completes
-        if (document.readyState === 'loading') {
-            document.addEventListener("DOMContentLoaded", function() {
-                setTimeout(function() {
-                    // Process mermaid code blocks first
-                    const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid, pre.mermaid > code');
-                    
-                    mermaidCodeBlocks.forEach(function(codeBlock, idx) {
-                        const preElement = codeBlock.parentElement;
-                        const graphDiv = document.createElement('div');
-                        graphDiv.className = 'mermaid-diagram';
-                        graphDiv.id = 'mermaid-diagram-' + idx;
-                        graphDiv.style.margin = '20px 0';
-                        
-                        // Replace the code block with a diagram container
-                        preElement.parentNode.replaceChild(graphDiv, preElement);
-                        
-                        // Render mermaid graph into the dedicated container
-                        mermaid.render(
-                            'generated-mermaid-' + idx,
-                            codeBlock.textContent,
-                            function(svgCode) {
-                                graphDiv.innerHTML = svgCode;
-                            }
-                        );
-                    });
-                    
-                    // Then run general init on any remaining mermaid elements
-                    const remainingMermaids = document.querySelectorAll('.mermaid, pre.mermaid, .mermaid-diagram');
-                    if(remainingMermaids.length > 0) {
-                        mermaid.init(remainingMermaids);
-                    }
-                }, 800); // Allow time for KaTeX, then process diagrams
-            });
+        if (mermaidCodeBlocks.length > 0) {
+          mermaidCodeBlocks.forEach(function(codeBlock, index) {
+            const parentPre = codeBlock.parentElement;
+            const mermaidCode = codeBlock.textContent.trim();
+            
+            // Create a target container for the mermaid SVG
+            const containerDiv = document.createElement('div');
+            containerDiv.className = 'mermaid-diagram';
+            containerDiv.id = `mermaid-diagram-${index}`;
+            
+            // Insert the container directly after the pre element (replacing it)
+            parentPre.parentNode.insertBefore(containerDiv, parentPre.nextSibling);
+            
+            // Hide the original code block
+            parentPre.style.display = 'none';
+            
+            // Render the mermaid chart into the new container
+            mermaid.render(
+              `my-svg-${index}`,
+              mermaidCode, 
+              function(svgCode) {
+                  containerDiv.innerHTML = svgCode;
+                  
+                  // Mark that Mermaid rendering has happened for this diagram
+                  if (!window.renderingSteps) window.renderingSteps = [];
+                  window.renderingSteps.push({step: 'mermaid-'+index, time: Date.now(), code: mermaidCode});
+                  
+                  // Optional: set a completion flag if this is the last diagram
+                  if (index == mermaidCodeBlocks.length - 1) {
+                    window.mermaidRenderingComplete = true;
+                  }
+              }
+            );
+          });
         } else {
-            // If already loaded, execute directly
-            setTimeout(function() {
-                const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid, pre.mermaid > code');
-                
-                mermaidCodeBlocks.forEach(function(codeBlock, idx) {
-                    const preElement = codeBlock.parentElement;
-                    const graphDiv = document.createElement('div');
-                    graphDiv.className = 'mermaid-diagram';
-                    graphDiv.id = 'mermaid-diagram-' + idx;
-                    graphDiv.style.margin = '20px 0';
-                    
-                    preElement.parentNode.replaceChild(graphDiv, preElement);
-                    
-                    mermaid.render(
-                        'generated-mermaid-' + idx,
-                        codeBlock.textContent,
-                        function(svgCode) {
-                            graphDiv.innerHTML = svgCode;
-                        }
-                    );
-                });
-                
-                const remainingMermaids = document.querySelectorAll('.mermaid, pre.mermaid, .mermaid-diagram');
-                if(remainingMermaids.length > 0) {
-                    mermaid.init(remainingMermaids);
-                }
-            }, 800);
+          // If no Mermaid blocks, mark it as done
+          if (!window.renderingSteps) window.renderingSteps = [];
+          window.renderingSteps.push({step: 'mermaid-none', time: Date.now()});
+          window.mermaidRenderingComplete = true;
         }
+      }
+      
+      if (document.readyState === 'loading') {
+        document.addEventListener("DOMContentLoaded", renderMermaidDiagram);
+      } else {
+        // If already loaded, run directly
+        renderMermaidDiagram();
+      }
+    </script>
+    
+    <!-- Completion marker to help Playwright know when rendering is finished -->
+    <script>
+      // Add this for Playwright to know when all rendering is done
+      window.allRenderingComplete = false;
+      
+      // Check periodically if all types of rendering are complete
+      setInterval(function() {
+        const katexExists = document.querySelector('.katex') !== null;
+        const syntaxHighlighted = document.querySelectorAll('.token').length > 0;
+        const mermaidDone = window.mermaidRenderingComplete || false;
+        
+        if (katexExists && syntaxHighlighted && mermaidDone) {
+          window.allRenderingComplete = true;
+          
+          // Add a visible completion marker for Playwright to detect
+          const completeMarker = document.createElement('div');
+          completeMarker.id = 'rendering-complete';
+          completeMarker.style.display = 'none'; // Keep it hidden
+          document.body.appendChild(completeMarker);
+        }
+      }, 200);
     </script>
 </body>
 
