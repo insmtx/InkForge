@@ -35,7 +35,7 @@ func NewPlaywrightRenderer() (*PlaywrightRenderer, error) {
 		return nil, fmt.Errorf("failed to run Playwright: %w", err)
 	}
 
-	// Add extra args for better performance and stability
+	// Add extra args for better performance, stability and network resilience
 	extraArgs := []string{
 		"--disable-web-security",
 		"--disable-features=VizDisplayCompositor",
@@ -45,10 +45,27 @@ func NewPlaywrightRenderer() (*PlaywrightRenderer, error) {
 		"--disable-backgrounding-occluded-windows",
 		"--disable-renderer-backgrounding",
 		"--disable-ipc-flooding-protection",
-		"--disable-background-networking",
 		"--no-sandbox",
 		"--disable-setuid-sandbox",
 		"--disable-dev-shm-usage",
+		"--disable-extensions",
+		"--disable-plugins",
+		"--no-default-browser-check",
+		"--disable-features=TranslateUI,BlinkGenPropertyTrees",
+		"--disable-hang-monitor",
+		"--disable-prompt-on-repost",
+		"--disable-sync",
+		"--no-first-run",
+		"--disable-blink-features=AutomationControlled",
+		"--disable-webgl",
+		"--disable-logging",
+		"--ignore-certificate-errors",
+		"--ignore-certificate-errors-skip-list",
+		"--disable-features=VizDisplayCompositor",
+		"--no-sandbox",            // Important for containerized environments
+		"--disable-dev-shm-usage", // Overcome limited resource problems
+		"--disable-gpu",           // Disable GPU hardware acceleration
+		"--remote-debugging-port=9222",
 	}
 
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
@@ -211,11 +228,18 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		return nil, fmt.Errorf("failed to set viewport: %w", err)
 	}
 
-	// Set HTML content with increased timeout and patience for large content
+	// Set HTML content but with more tolerant options to prevent timeout during external resource loading
 	logs.Infof("Setting HTML content (%d characters)", len(html))
+
+	// Navigate to a blank page first to ensure fresh state
+	if _, err := page.Goto("about:blank"); err != nil {
+		logs.Warnf("Could not navigate to blank page: %v", err)
+	}
+
+	// Set content with more relaxed waitUntil condition to avoid hanging on external resource loads
 	if err := page.SetContent(html, playwright.PageSetContentOptions{
-		WaitUntil: playwright.WaitUntilStateNetworkidle,
-		Timeout:   playwright.Float(60000), // 60 seconds timeout for heavy content
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded, // Changed from networkidle to domcontentload to avoid timeout on network resources
+		Timeout:   playwright.Float(60000),                   // 60 seconds but with faster resolution
 	}); err != nil {
 		logs.Errorf("Failed to set page content: %v", err)
 		return nil, fmt.Errorf("failed to set page content: %w", err)
@@ -227,75 +251,100 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 	// Wait for DOM to be ready
 	if _, err := page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
 		State:   playwright.WaitForSelectorStateAttached,
-		Timeout: playwright.Float(10000), // 10 seconds
+		Timeout: playwright.Float(10000), // 10 seconds for DOM to be ready
 	}); err != nil {
 		logs.Warnf("Could not wait for body selector: %v", err)
 	}
 
 	// Check if page has KaTeX elements that need to be processed
-	pageWaitResult, err := page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
-		State:   playwright.WaitForSelectorStateAttached,
-		Timeout: playwright.Float(10000),
-	})
-	if err != nil {
-		logs.Warnf("Could not find body element: %v", err)
-		pageWaitResult = nil
+	hasKaTeXPatternResult, patternCheckErr := page.Evaluate(`() => {
+		const bodyInnerHTML = document.body.innerHTML;
+		// Check for KaTeX delimiter patterns in the content
+		const hasDollarFormula = bodyInnerHTML.includes('$');
+		const hasEscapeParens = bodyInnerHTML.includes('\\(') || bodyInnerHTML.includes('\\)');
+		const hasEscapeBrackets = bodyInnerHTML.includes('\\[') || bodyInnerHTML.includes('\\]');
+		
+		return hasDollarFormula || hasEscapeParens || hasEscapeBrackets;
+	}`)
+
+	if patternCheckErr != nil {
+		logs.Warnf("Could not check for KaTeX patterns: %v", patternCheckErr)
+		hasKaTeXPatternResult = true // Default to true if we can't check
 	}
 
-	if pageWaitResult != nil {
-		hasKaTeXPattern, checkErr := page.Evaluate(`() => {
-			const bodyText = document.body.innerHTML;
-			// Check for KaTeX delimiter patterns in the content
-			const hasMathPatterns = /\\\$[^\\\$].*\\\$|\\\$\{2}[^\\\$].*\\\$\{2}|\\\\\\([^)]*\\\\\\)|\\\\\\[[^\\]]*\\\\\\]/.test(bodyText);
-			return hasMathPatterns;
+	hasKaTeX := false
+	if val, ok := hasKaTeXPatternResult.(bool); ok {
+		hasKaTeX = val
+	}
+
+	if hasKaTeX {
+		logs.Info("Math formulas detected, waiting for KaTeX rendering...")
+
+		// Allow some time for CDN resources to load (but not indefinitely)
+		page.WaitForTimeout(5000) // Give it maximum 5 seconds to load KaTeX resources
+
+		// Attempt manual KaTeX rendering if available
+		_, manualRenderErr := page.Evaluate(`() => {
+			// Make sure renderMath is available or retry
+			if (typeof renderMathInElement !== 'undefined' && document.body) {
+				renderMathInElement(document.body, {
+					delimiters: [
+						{left: "$$", right: "$$", display: true},
+						{left: "$", right: "$", display: false},
+						{left: "\\(", right: "\\)", display: false},
+						{left: "\\[", right: "\\]", display: true}
+					],
+					ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+				});
+				window.katexRenderingComplete = true;
+			} else if (window.katex) {
+				window.katexRenderingComplete = true; // Assume rendering might be in progress
+			}
 		}`)
-
-		if checkErr != nil {
-			logs.Warnf("Could not check for KaTeX patterns: %v", checkErr)
-			hasKaTeXPattern = true // Assume there might be, to be safe
+		if manualRenderErr != nil {
+			logs.Warnf("Could not trigger manual KaTeX rendering: %v", manualRenderErr)
 		}
 
-		if val, ok := hasKaTeXPattern.(bool); ok && val {
-			logs.Info("Math formulas detected, waiting for KaTeX rendering...")
+		// Wait up to 10 more seconds specifically for KaTeX rendered elements
+		katexWaitStart := time.Now()
+		katexFinished := false
 
-			// Attempt manual KaTeX rendering if auto-render didn't happen properly
-			// (this addresses the scenario where DOMContentLoaded already fired)
-			_, manualRenderErr := page.Evaluate(`() => {
-				if (window.renderMath && !window.katexRenderingComplete) {
-					window.renderMath();
-					// Give a brief moment for the render to process
-					window.katexRenderingComplete = true;
-				} else if (window.renderMath) {
-					// If renderMath exists and rendering isn't complete, call it
-					window.renderMath();
-				}
-			}`)
-			if manualRenderErr != nil {
-				logs.Warnf("Could not trigger manual KaTeX rendering: %v", manualRenderErr)
-			}
-
-			// Wait specifically for KaTeX rendering to complete and elements to appear
-			katexWaitResult, katexErr := page.WaitForFunction(`() => {
-				// Check if KaTeX rendering has completed
-				const katexReady = window.katexRenderingComplete === true;
+		// Use a polling approach instead of waiting forever
+		for i := 0; i < 10; i++ { // 10 iterations * 1 sec = 10 seconds max
+			result, evalErr := page.Evaluate(`() => {
+				// Check for rendered KaTeX elements or completion flag
 				const katexElements = document.querySelectorAll('.katex').length;
-				return katexReady && katexElements > 0;
-			}`, playwright.PageWaitForFunctionOptions{
-				Timeout: playwright.Float(30000), // 30 seconds for math rendering
-			})
-			if katexErr != nil {
-				logs.Warnf("Math elements might still be processing after timeout: %v", katexErr)
-				// Still proceed, KaTeX might be partially completed
-			} else {
-				logs.Infof("Successfully waited for KaTeX rendering, result: %v", katexWaitResult)
+				const completeFlag = window.katexRenderingComplete === true;
+				return { count: katexElements, ready: completeFlag };
+			}`)
+
+			if evalErr == nil && result != nil {
+				if resultMap, ok := result.(map[string]interface{}); ok {
+					count := 0
+					if cnt, ok := resultMap["count"].(float64); ok {
+						count = int(cnt)
+					}
+
+					if ready, ok := resultMap["ready"].(bool); ok && ready || count > 0 {
+						katexFinished = true
+						logs.Infof("KaTeX rendered %d element(s)", count)
+						break
+					}
+				}
 			}
-		} else {
-			logs.Info("No math formulas detected in content")
+
+			time.Sleep(1 * time.Second) // Brief pause between checks
 		}
+
+		if !katexFinished {
+			logs.Warnf("Math elements might still be processing after max timeout: %s", time.Since(katexWaitStart))
+		}
+	} else {
+		logs.Info("No math formulas detected in content")
 	}
 
-	// Additional wait to ensure all elements render properly
-	page.WaitForTimeout(2000)
+	// Final wait to ensure visuals are stable
+	page.WaitForTimeout(1000)
 
 	// Determine screenshot options based on image format
 	var screenshotOptions playwright.PageScreenshotOptions
