@@ -17,12 +17,7 @@ func StartServer() {
 	config := GetServerConfig()
 
 	// Init API service
-	err := api.InitEngine(model.RenderingOptions{
-		EnableKaTeX:              config.KaTeXEnabled,
-		EnableMermaid:            config.MermaidEnabled,
-		EnableSyntaxHighlighting: true,
-		DisableExternalResources: false,
-	})
+	err := api.InitEngine(model.RenderingOptions{})
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialize rendering engine: %v", err))
 	}

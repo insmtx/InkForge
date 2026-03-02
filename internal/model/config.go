@@ -31,11 +31,7 @@ type ServerConfig struct {
 
 // RenderingOptions defines options for Markdown rendering
 type RenderingOptions struct {
-	EnableSyntaxHighlighting bool              `json:"enable_syntax_highlighting"`
-	EnableKaTeX              bool              `json:"enable_katex"`
-	EnableMermaid            bool              `json:"enable_mermaid"`
-	DisableExternalResources bool              `json:"disable_external_resources"`
-	CustomJS                 []string          `json:"custom_js,omitempty"`
-	CustomCSS                []string          `json:"custom_css,omitempty"`
-	ResourceHints            map[string]string `json:"resource_hints,omitempty"`
+	CustomJS      []string          `json:"custom_js,omitempty"`
+	CustomCSS     []string          `json:"custom_css,omitempty"`
+	ResourceHints map[string]string `json:"resource_hints,omitempty"`
 }

@@ -51,7 +51,7 @@ func NewRenderEngine(options model.RenderingOptions) (*RenderEngine, error) {
 
 // loadTemplates loads HTML templates needed for rendering
 func (e *RenderEngine) loadTemplates() error {
-	// Read the base template file content - check both possible locations
+	// Read the base template file content - find in multiple possible locations
 	templatePaths := []string{
 		filepath.Join("template", "base.html"),                       // Original location
 		filepath.Join("internal", "render", "template", "base.html"), // Deployed location
@@ -95,25 +95,22 @@ func (e *RenderEngine) loadTemplates() error {
 // RenderMarkdownToImage converts Markdown content to an image
 func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.MarkdownConversionRequest) (*model.MarkdownConversionResponse, error) {
 	startTime := time.Now()
-	logs.Infof("Starting markdown to image conversion - Title: %s, Content length: %d chars", req.Title, len(req.Content))
 
 	// Convert Markdown to HTML
-	logs.Infof("Converting markdown to HTML...")
 	htmlContent, err := e.convertMarkdownToHTML(req.Content)
 	if err != nil {
 		logs.Errorf("Failed to convert markdown to HTML: %v", err)
 		return nil, fmt.Errorf("failed to convert markdown to HTML: %w", err)
 	}
-	logs.Infof("Markdown converted to HTML, HTML length: %d chars", len(htmlContent))
 
-	// Prepare template data - ensure all features are enabled regardless of configuration
+	// Prepare template data - all features always enabled
 	templateData := map[string]interface{}{
 		"Title":          req.Title,
 		"Content":        template.HTML(htmlContent),
 		"CSS":            req.CSS,
 		"Theme":          req.Theme,
-		"KaTeXEnabled":   true, // Always enabled for proper math rendering
-		"MermaidEnabled": true, // Always enabled for proper diagram rendering
+		"KaTeXEnabled":   true, // Always enabled
+		"MermaidEnabled": true, // Always enabled
 	}
 
 	var buf bytes.Buffer
@@ -128,7 +125,6 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 		logs.Errorf("Failed to execute template: %v", err)
 		return nil, fmt.Errorf("failed to execute template: %w", err)
 	}
-	logs.Info("Template executed successfully")
 
 	// Process custom CSS/JS if provided in request
 	finalHTML := buf.String()
@@ -154,18 +150,14 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 		imgFormat = "png"
 	}
 
-	logs.Infof("Preparing image render with dimensions: %dx%d, scale: %.2f, format: %s", width, height, scale, imgFormat)
-
 	// Generate the image using Playwright
 	imageData, err := e.renderer.RenderImage(ctx, finalHTML, width, height, scale, imgFormat)
 	if err != nil {
 		logs.Errorf("Failed to render image after preparing parameters: %v", err)
 		return nil, fmt.Errorf("failed to render image: %w", err)
 	}
-	logs.Infof("Image rendered successfully, size: %d bytes", len(imageData))
 
 	duration := time.Since(startTime)
-	logs.Infof("Completed markdown to image conversion in %v", duration)
 
 	response := &model.MarkdownConversionResponse{
 		ImageData:   imageData,
@@ -177,6 +169,7 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 		Duration: duration.Milliseconds(),
 	}
 
+	logs.Infof("Successfully completed conversion in %v", duration)
 	return response, nil
 }
 

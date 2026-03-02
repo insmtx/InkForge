@@ -6,12 +6,7 @@ import (
 
 // Initialize the API service with the rendering engine
 func Initialize() error {
-	options := model.RenderingOptions{
-		EnableSyntaxHighlighting: true,
-		EnableKaTeX:              true,
-		EnableMermaid:            true,
-		DisableExternalResources: false,
-	}
+	options := model.RenderingOptions{}
 
 	return InitEngine(options)
 }
