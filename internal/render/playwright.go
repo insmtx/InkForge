@@ -234,51 +234,63 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		return nil, fmt.Errorf("failed to set viewport: %w", err)
 	}
 
-	// Set HTML content - use faster loading approach
-	logs.Debugf("Setting HTML content (%d characters)", len(html))
+	// Ultra-fast content loading with timeout - don't wait for resources
+	logs.Debugf("Setting HTML content (%d characters) with ultra-fast loading", len(html))
 
-	// Instead of navigating to blank, set content directly with fast resolving
-	if err := page.SetContent(html, playwright.PageSetContentOptions{
-		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
-		Timeout:   playwright.Float(15000), // Reduce to 15 seconds to speed up
-	}); err != nil {
-		logs.Errorf("Failed to set page content: %v", err)
-		return nil, fmt.Errorf("failed to set page content: %w", err)
+	// Set content quickly - don't require full DOM loading
+	setErr := page.SetContent(html, playwright.PageSetContentOptions{
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded, // Fastest practical state
+		Timeout:   playwright.Float(5000),                    // 5 seconds max
+	})
+	if setErr != nil {
+		logs.Warnf("Page content setting took long time: %v", setErr)
+		// Continue anyway as page might be functional enough
 	}
 
-	// Fast synchronous detection for mathematical expressions without extra waiting
-	logs.Debug("Checking for math expressions...")
+	// Ultra-fast sync math detection
+	logs.Debug("Fast math detection...")
 	hasMathExpressions := checkForMathExpressions(html)
 
 	if hasMathExpressions {
-		logs.Infof("Math expressions detected, optimizing rendering for speed...")
+		logs.Infof("Math detected, starting fast rendering...")
 
-		// Attempt to trigger rendering but very early on
-		_, renderErr := page.Evaluate(`() => {
+		// Attempt math rendering without blocking
+		evalResult, evalErr := page.Evaluate(`() => {
 			if (window.renderMath) {
 				window.renderMath();
+				return true;
 			} else if (window.renderMathInElement) {
-				renderMathInElement(document.body, {
-					delimiters: [
-						{left: "$$", right: "$$", display: true},
-						{left: "$", right: "$", display: false},
-						{left: "\\(", right: "\\)", display: false},
-						{left: "\\[", right: "\\]", display: true}
-					],
-					ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-					throwOnError: false
-				});
-			}
+				try {
+				  renderMathInElement(document.body, {
+					  delimiters: [
+						  {left: "$$", right: "$$", display: true},
+						  {left: "$", right: "$", display: false},
+						  {left: "\\(", right: "\\)", display: false},
+						  {left: "\\[", right: "\\]", display: true}
+					  ],
+					  ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+					  throwOnError: false
+				  });
+				  return true;
+				} catch(e) {
+				  return false;
+				}
+			} 
+			return false;
 		}`)
-		if renderErr != nil {
-			logs.Warnf("Quick math rendering failed: %v", renderErr)
-		}
 
-		// Very brief wait to let math rendering start, but prioritize speed over full completion
-		page.WaitForTimeout(500) // Just enough for initial processing
-	} else {
-		logs.Debug("No math expressions detected in content")
+		if evalErr != nil {
+			logs.Warnf("Math rendering init failed: %v", evalErr)
+		} else {
+			logs.Debugf("Math rendering initiated: %v", evalResult)
+		}
 	}
+
+	// Wait very briefly for basics to render
+	page.WaitForTimeout(500) // Half a second
+
+	// Small additional wait before taking screenshot
+	page.WaitForTimeout(300) // Wait extra just before screenshot
 
 	// Optimize screenshot capture settings for speed
 	var screenshotOptions playwright.PageScreenshotOptions
