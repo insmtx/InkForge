@@ -35,7 +35,7 @@ COPY . .
 # Build the InkForge binary with production flags and leverage Go build cache
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" -installsuffix cgo -o inkforge ./cmd/inkforge
+    CGO_ENABLED=0 GOOS=linux go build -v -ldflags="-w -s -extldflags '-static'" -installsuffix cgo -o inkforge ./cmd/inkforge
 
 # Stage 2: Create final runtime image from the base image
 FROM registry.yygu.cn/skills/inkforge:base

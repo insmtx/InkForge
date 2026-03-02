@@ -212,7 +212,7 @@ func (pp *PagePool) releasePage(page playwright.Page) error {
 func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width, height int, scale float64, imgFormat string) ([]byte, error) {
 	logs.Infof("Starting image rendering process - Width: %d, Height: %d, Scale: %.2f, Format: %s", width, height, scale, imgFormat)
 
-	// Acquire a page from pool with shorter timeout to improve concurrency
+	// Acquire a page from pool with timeout
 	page, err := r.pagePool.acquirePage(10 * time.Second)
 	if err != nil {
 		logs.Errorf("Failed to acquire page from pool: %v", err)
@@ -234,65 +234,69 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		return nil, fmt.Errorf("failed to set viewport: %w", err)
 	}
 
-	// Ultra-fast content loading with timeout - don't wait for resources
-	logs.Debugf("Setting HTML content (%d characters) with ultra-fast loading", len(html))
+	// Set HTML content with fast approach but more realistic timeout for CDN resource loading
+	logs.Debugf("Setting HTML content (%d characters) with balanced speed", len(html))
 
-	// Set content quickly - don't require full DOM loading
-	setErr := page.SetContent(html, playwright.PageSetContentOptions{
-		WaitUntil: playwright.WaitUntilStateDomcontentloaded, // Fastest practical state
-		Timeout:   playwright.Float(5000),                    // 5 seconds max
-	})
-	if setErr != nil {
-		logs.Warnf("Page content setting took long time: %v", setErr)
-		// Continue anyway as page might be functional enough
+	if err := page.SetContent(html, playwright.PageSetContentOptions{
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded, // Fast but allows basic resources to load
+		Timeout:   playwright.Float(6000),                    // 6 seconds - allows CDN resources to load
+	}); err != nil {
+		logs.Warnf("Page content setting encountered issues: %v, continuing anyway", err)
+		// We continue to allow for partial rendering
 	}
 
-	// Ultra-fast sync math detection
-	logs.Debug("Fast math detection...")
-	hasMathExpressions := checkForMathExpressions(html)
+	// Moderate-delay approach for rendering dependencies
+	logs.Info("Allowing CDN resources to load...")
+	page.WaitForTimeout(800) // Brief wait for basic resources to start loading
 
-	if hasMathExpressions {
-		logs.Infof("Math detected, starting fast rendering...")
+	// Check for and trigger advanced features if present
+	hasMath := checkForMathExpressions(html)
+	hasMermaid := strings.Contains(html, "mermaid")
 
-		// Attempt math rendering without blocking
-		evalResult, evalErr := page.Evaluate(`() => {
+	if hasMath {
+		logs.Info("Math detected, triggering KaTeX rendering...")
+		// Try to activate KaTeX if available
+		page.Evaluate(`() => {
 			if (window.renderMath) {
 				window.renderMath();
-				return true;
 			} else if (window.renderMathInElement) {
 				try {
-				  renderMathInElement(document.body, {
-					  delimiters: [
-						  {left: "$$", right: "$$", display: true},
-						  {left: "$", right: "$", display: false},
-						  {left: "\\(", right: "\\)", display: false},
-						  {left: "\\[", right: "\\]", display: true}
-					  ],
-					  ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-					  throwOnError: false
-				  });
-				  return true;
+					renderMathInElement(document.body, {
+						delimiters: [
+							{left: "$$", right: "$$", display: true},
+							{left: "$", right: "$", display: false},
+							{left: "\\(", right: "\\)", display: false},
+							{left: "\\[", right: "\\]", display: true}
+						],
+						ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+						throwOnError: false
+					});
 				} catch(e) {
-				  return false;
+					console.log("KaTeX rendering issue: ", e.message);
 				}
-			} 
-			return false;
+			}
 		}`)
-
-		if evalErr != nil {
-			logs.Warnf("Math rendering init failed: %v", evalErr)
-		} else {
-			logs.Debugf("Math rendering initiated: %v", evalResult)
-		}
 	}
 
-	// Wait very briefly for basics to render
-	page.WaitForTimeout(500) // Half a second
+	if hasMermaid {
+		logs.Info("Mermaid diagram detected, triggering rendering...")
+		// Trigger Mermaid rendering
+		page.Evaluate(`() => {
+			if (window.mermaid && window.mermaid.init) {
+				try {
+					mermaid.init();
+				} catch(e) {
+					console.log("Mermaid rendering issue: ", e.message);
+				}
+			}
+		}`)
+	}
 
-	// Small additional wait before taking screenshot
-	page.WaitForTimeout(300) // Wait extra just before screenshot
+	// Allow some time for client-side rendering to complete
+	logs.Info("Waiting for rendering to complete...")
+	page.WaitForTimeout(2000) // Wait for rendering to occur
 
-	// Optimize screenshot capture settings for speed
+	// Optimize screenshot capture settings
 	var screenshotOptions playwright.PageScreenshotOptions
 
 	switch imgFormat {
@@ -300,23 +304,23 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		screenshotOptions = playwright.PageScreenshotOptions{
 			Type:     playwright.ScreenshotTypeJpeg,
 			Quality:  playwright.Int(90),
-			FullPage: playwright.Bool(false),
+			FullPage: playwright.Bool(true), // Capture full content including dynamic elements
 		}
 	case "png":
 		screenshotOptions = playwright.PageScreenshotOptions{
 			Type:     playwright.ScreenshotTypePng,
-			FullPage: playwright.Bool(false),
+			FullPage: playwright.Bool(true), // Capture full content
 		}
 	default:
 		screenshotOptions = playwright.PageScreenshotOptions{
 			Type:     playwright.ScreenshotTypePng,
-			FullPage: playwright.Bool(false),
+			FullPage: playwright.Bool(true),
 		}
 	}
 
 	logs.Debugf("Taking screenshot with options - Type: %s", screenshotOptions.Type)
 
-	// Take the screenshot optimally
+	// Take the screenshot
 	screenshot, err := page.Screenshot(screenshotOptions)
 	if err != nil {
 		logs.Errorf("Failed to take screenshot: %v", err)
