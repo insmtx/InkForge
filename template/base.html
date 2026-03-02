@@ -109,7 +109,36 @@
                 {left: "\\[", right: "\\]", display: true}
             ],
             ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-            throwOnError: false // Don't crash if math has errors
+            throwOnError: false, // Don't crash if math has errors
+            // Enable recognition of class="math" elements for gomarkdown-generated math
+            macros: {},
+            // Additionally look for elements with math class
+            strict: false // Be forgiving with errors
+        };
+        
+        // Extended element lookup for math
+        window.renderMathCustom = function(target) {
+            target = target || document.body;
+            
+            // If math elements exist with class "math", process them specially
+            const mathElements = target.querySelectorAll('.math');
+            for (let i = 0; i < mathElements.length; i++) {
+                const elem = mathElements[i];
+                const isDisplay = elem.className.includes('display');
+                
+                let texContent = elem.textContent || elem.innerText;
+                // Extract the math content inside delimiters
+                if (texContent.startsWith('\\(') && texContent.endsWith('\\)')) {
+                    texContent = texContent.substring(2, texContent.length - 2);
+                    katex.render(texContent, elem, {throwOnError: false, displayMode: false});
+                } else if (texContent.startsWith('\\[') && texContent.endsWith('\\]')) {
+                    texContent = texContent.substring(2, texContent.length - 2);
+                    katex.render(texContent, elem, {throwOnError: false, displayMode: true});
+                }
+            }
+            
+            // Then handle everything else normally for other delimiters
+            renderMathInElement(target, katexOptions);
         };
         
         // Function to attempt KaTeX rendering multiple ways
@@ -117,11 +146,11 @@
             try {
                 // Ensure the DOM is ready before rendering
                 if (document.body) {
-                    renderMathInElement(document.body, katexOptions);
+                    window.renderMathCustom(document.body);
                     // Small delay to allow rendering to complete
                     setTimeout(() => {
                         window.katexRenderingComplete = true;
-                    }, 100);
+                    }, 200);
                 }
             } catch (e) {
                 console.warn("KaTeX rendering error:", e.message);
@@ -132,11 +161,11 @@
         // Initial rendering - try multiple times with delays to ensure DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener("DOMContentLoaded", function() {
-                setTimeout(window.renderMath, 100);
+                setTimeout(window.renderMath, 150);
             });
         } else {
             // Even if not loading, still use a small delay to ensure content is inserted
-            setTimeout(window.renderMath, 100);
+            setTimeout(window.renderMath, 150);
         }
     </script>
     {{end}}
@@ -144,7 +173,41 @@
     {{if .MermaidEnabled}}
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
     <script>
-        mermaid.initialize({ startOnLoad: true });
+        mermaid.initialize({ 
+            startOnLoad: false,  // Manual start to have more control
+            theme: '{{.Theme}}',
+            securityLevel: 'loose'  // Allow more chart types
+        });
+        
+        // Manually invoke Mermaid after DOM is ready and content is processed
+        if (document.readyState === 'loading') {
+            document.addEventListener("DOMContentLoaded", function() {
+                setTimeout(function() {
+                    // Check for any existing Mermaid code blocks and render them
+                    const mermaidBlocks = document.querySelectorAll('pre code.language-mermaid, pre.mermaid, .mermaid');
+                    if (mermaidBlocks.length > 0) {
+                        mermaid.run({
+                           nodes: mermaidBlocks,
+                           suppressErrors: true
+                        }).catch(function(error) {
+                           console.error("Mermaid render error:", error);
+                        });
+                    }
+                }, 300); // Slight delay after KaTeX completion
+            });
+        } else {
+            setTimeout(function() {
+               const mermaidBlocks = document.querySelectorAll('pre code.language-mermaid, pre.mermaid, .mermaid');
+               if (mermaidBlocks.length > 0) {
+                   mermaid.run({
+                      nodes: mermaidBlocks,
+                      suppressErrors: true
+                   }).catch(function(error) {
+                      console.error("Mermaid render error:", error);
+                   });
+               }
+            }, 300);
+        }
     </script>
     {{end}}
 </body>

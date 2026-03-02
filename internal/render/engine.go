@@ -185,23 +185,21 @@ func (e *RenderEngine) RenderMarkdownAsHTML(req *model.MarkdownConversionRequest
 	return finalHTML, nil
 }
 
-// convertMarkdownToHTML converts Markdown text to HTML string
+// convertMarkdownToHTML converts Markdown text to HTML string while preserving math expressions
 func (e *RenderEngine) convertMarkdownToHTML(markdownText string) (string, error) {
-	// Create a parser with extended options
+	// Parse Markdown to HTML using gomarkdown library
 	extensions := parser.CommonExtensions |
 		parser.AutoHeadingIDs |
 		parser.FencedCode |
 		parser.NoEmptyLineBeforeBlock
 	p := parser.NewWithExtensions(extensions)
 
-	// Create a renderer with HTML options
 	renderer := html.NewRenderer(html.RendererOptions{
 		Flags: html.CommonFlags |
 			html.HrefTargetBlank |
 			html.FootnoteReturnLinks,
 	})
 
-	// Parse and render the markdown
 	doc := markdown.Parse([]byte(markdownText), p)
 	htmlContent := string(markdown.Render(doc, renderer))
 
