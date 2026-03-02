@@ -5,20 +5,37 @@
 FROM registry.yygu.cn/library/golang:1.24 AS builder
 
 ENV GOPROXY=https://goproxy.cn,direct
+ENV GOSUMDB=sum.golang.org
+ENV GONOPROXY=""
+ENV GONOSUMDB=""
 
 WORKDIR /workspace
 
-# Copy go mod files
+# Create a temporary volume mount point for module and build caches to leverage Docker cache
+RUN mkdir -p /go/pkg /root/.cache/go-build
+
+# Create a non-root user for build process (security best practice)
+RUN groupadd -g 1001 appuser && useradd -u 1001 -g appuser appuser
+
+# Cache go modules by copying go.mod and go.sum first
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Download dependencies with caching
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download && \
+    go mod verify
 
-# Copy source code
+# Set up caching for go build process
+ENV GOCACHE=/root/.cache/go-build
+ENV GOMODCACHE=/go/pkg/mod
+
+# Copy source code last, after go modules are cached
 COPY . .
 
-# Build the InkForge binary with production flags
-RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" -installsuffix cgo -o inkforge ./cmd/inkforge
+# Build the InkForge binary with production flags and leverage Go build cache
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" -installsuffix cgo -o inkforge ./cmd/inkforge
 
 # Stage 2: Create final runtime image from the base image
 FROM registry.yygu.cn/skills/inkforge:base
