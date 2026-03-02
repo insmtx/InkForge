@@ -35,6 +35,26 @@ func MarkdownToImageHandler(ctx *gin.Context) {
 		return
 	}
 
+	// Apply default values for optional parameters
+	if req.ImageFormat == "" {
+		req.ImageFormat = "jpg"
+	}
+	if req.Width == 0 {
+		req.Width = 1200
+	}
+	if req.Height == 0 {
+		req.Height = 800
+	}
+	if req.Scale == 0 {
+		req.Scale = 2.0
+	}
+	if req.Quality == 0 {
+		req.Quality = 90
+	}
+	if req.Theme == "" {
+		req.Theme = "light"
+	}
+
 	// Log incoming request
 	logs.Infof("Received markdown to image request with title: %s, width: %d, height: %d", req.Title, req.Width, req.Height)
 

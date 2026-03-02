@@ -47,46 +47,52 @@ Open `http://localhost:8080` in your browser to access the interactive demo page
 
 **Endpoint:** `POST /api/v1/markdown2image`
 
-**Request:**
+Returns the image directly with `Content-Type: image/jpeg` (or png/webp based on format).
+
+**Minimal Request (content only):**
+
+```json
+{
+  "content": "# Hello World\n\nThis is **bold** text."
+}
+```
+
+**Full Request (all optional parameters):**
 
 ```json
 {
   "content": "# Hello World\n\nThis is **bold** and *italic* text.",
   "title": "My Document",
   "theme": "light",
-  "image_format": "png",
+  "image_format": "jpg",
   "width": 1200,
   "height": 800,
-  "scale": 2.0
+  "scale": 2.0,
+  "quality": 90,
+  "css": ""
 }
 ```
 
-**Response:**
+### cURL Examples
 
-```json
-{
-  "status": "success",
-  "image_data": "<base64-encoded-image>",
-  "image_format": "png",
-  "size": {
-    "width": 1200,
-    "height": 800
-  },
-  "duration_ms": 1500
-}
+**Minimal:**
+```bash
+curl -X POST http://localhost:8080/api/v1/markdown2image \
+  -H "Content-Type: application/json" \
+  -d '{"content": "# Hello\n\n$E=mc^2$"}' \
+  -o output.jpg
 ```
 
-### cURL Example
-
+**With options:**
 ```bash
 curl -X POST http://localhost:8080/api/v1/markdown2image \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "# Hello\n\n$$E=mc^2$$",
-    "title": "Math Test",
-    "image_format": "png"
+    "content": "# Hello\n\n```python\nprint(\"hi\")\n```",
+    "theme": "dark",
+    "width": 800
   }' \
-  --output output.png
+  -o output.png
 ```
 
 ### Generate HTML (Debug)
@@ -105,10 +111,10 @@ Returns `{"status": "ok"}` when the service is running.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| content | string | required | Markdown content to convert |
+| content | string | (required) | Markdown content to convert |
 | title | string | "" | Document title |
 | theme | string | "light" | Theme: "light" or "dark" |
-| image_format | string | "png" | Output format: "png", "jpg", "webp" |
+| image_format | string | "jpg" | Output format: "jpg", "png", "webp" |
 | width | int | 1200 | Image width in pixels |
 | height | int | 800 | Image height in pixels |
 | scale | float | 2.0 | Scale factor for high-DPI (2.0 = 2x) |

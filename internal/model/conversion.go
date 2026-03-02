@@ -8,7 +8,7 @@ type MarkdownConversionRequest struct {
 	Title       string            `json:"title,omitempty"`                        // Optional title for the document
 	CSS         string            `json:"css,omitempty"`                          // Optional custom CSS
 	Theme       string            `json:"theme,omitempty" default:"light"`        // Theme: light, dark
-	ImageFormat string            `json:"image_format,omitempty" default:"png"`   // Image format: png, jpg, webp
+	ImageFormat string            `json:"image_format,omitempty" default:"jpg"`   // Image format: png, jpg, webp
 	Width       int               `json:"width,omitempty" default:"1200"`         // Width of the output image
 	Height      int               `json:"height,omitempty" default:"800"`         // Height of the output image
 	Scale       float64           `json:"scale,omitempty" default:"2.0"`          // Scale factor for high-DPI output
