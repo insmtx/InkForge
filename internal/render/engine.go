@@ -51,16 +51,33 @@ func NewRenderEngine(options model.RenderingOptions) (*RenderEngine, error) {
 
 // loadTemplates loads HTML templates needed for rendering
 func (e *RenderEngine) loadTemplates() error {
-	// Read the base template file content
-	templateDir := filepath.Join("template")
-	baseTemplatePath := filepath.Join(templateDir, "base.html")
-	logs.Infof("Loading template from path: %s", baseTemplatePath)
-
-	content, err := ioutil.ReadFile(baseTemplatePath)
-	if err != nil {
-		logs.Errorf("Failed to read base template: %v", err)
-		return fmt.Errorf("failed to read base template: %w", err)
+	// Read the base template file content - check both possible locations
+	templatePaths := []string{
+		filepath.Join("template", "base.html"),                       // Original location
+		filepath.Join("internal", "render", "template", "base.html"), // Deployed location
+		filepath.Join(".", "template", "base.html"),                  // Fallback
+		"./template/base.html",                                       // Direct path
 	}
+
+	var content []byte
+	var baseTemplatePath string
+	var err error
+
+	// Find the first path that exists
+	for _, path := range templatePaths {
+		content, err = ioutil.ReadFile(path)
+		if err == nil {
+			baseTemplatePath = path
+			break
+		}
+		logs.Debugf("Trying template path %s, failed: %v", path, err)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to find base template in any expected location: %w", err)
+	}
+
+	logs.Infof("Loading template from path: %s", baseTemplatePath)
 	logs.Infof("Successfully read base template, size: %d bytes", len(content))
 
 	tmpl, err := template.New("base").Parse(string(content))

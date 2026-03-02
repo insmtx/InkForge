@@ -35,7 +35,7 @@ func NewPlaywrightRenderer() (*PlaywrightRenderer, error) {
 		return nil, fmt.Errorf("failed to run Playwright: %w", err)
 	}
 
-	// Add extra args for better performance, stability and network resilience
+	// Add extra args for better performance, stability and especially reduced network dependencies
 	extraArgs := []string{
 		"--disable-web-security",
 		"--disable-features=VizDisplayCompositor",
@@ -61,11 +61,17 @@ func NewPlaywrightRenderer() (*PlaywrightRenderer, error) {
 		"--disable-logging",
 		"--ignore-certificate-errors",
 		"--ignore-certificate-errors-skip-list",
-		"--disable-features=VizDisplayCompositor",
-		"--no-sandbox",            // Important for containerized environments
-		"--disable-dev-shm-usage", // Overcome limited resource problems
+		"--no-sandbox",            // Critical for containerized envs
+		"--disable-dev-shm-usage", // Essential for containerized environments
 		"--disable-gpu",           // Disable GPU hardware acceleration
 		"--remote-debugging-port=9222",
+		"--disable-background-networking",              // Minimize background network usage
+		"--disable-background-media-suspend",           // Optimize media handling
+		"--disable-backgrounding-occluded-windows",     // Prevent background window processing
+		"--disable-features=OutOfBlinkCors",            // Reduce CORS overhead
+		"--disable-fetching-hints-at-navigation-start", // Skip hints requesting extra network
+		"--disable-field-trial-config",                 // Skip experiments over network
+		"--force-effective-connection-type=4G",         // Simulate slower, more reliable connection
 	}
 
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
@@ -278,17 +284,16 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 	if hasMathExpressions {
 		logs.Info("Math expressions detected, triggering KaTeX rendering...")
 
-		// Ensure all resources load by waiting extra time and manually triggering render
-		page.WaitForTimeout(3000) // Short timeout to allow resources to potentially load
+		// Quick attempt to trigger rendering - no wait for network resources
+		page.WaitForTimeout(500) // Very short timeout to allow scripts to evaluate
 
-		// Try to trigger math rendering multiple times in case of async loading
-		for attempt := 1; attempt <= 3; attempt++ {
-			_, renderErr := page.Evaluate(`() => {
-				if (window.renderMath) {
-					window.renderMath();
-				} else if (typeof renderMathInElement !== 'undefined' && window.katexOptions) {
-					// Fallback rendering for when auto-render didn't work
-					renderMathInElement(document.body, window.katexOptions || {
+		// Try to trigger math rendering with the assumption KaTeX resources will load async
+		_, renderErr := page.Evaluate(`() => {
+			// Immediately attempt to trigger KaTeX rendering if functions exist
+			try {
+				if (typeof renderMathInElement !== 'undefined') {
+					// Render KaTeX math but don't expect it to complete immediately
+					renderMathInElement(document.body, {
 						delimiters: [
 							{left: "$$", right: "$$", display: true},
 							{left: "$", right: "$", display: false},
@@ -298,78 +303,33 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 						ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
 						throwOnError: false
 					});
-					window.katexRenderingComplete = true;
+					// Instead of waiting for completion, set a flag indicating to keep checking briefly
+					window.hasPendingMath = true;
+				} else if (typeof window.renderMath === 'function') {
+					window.renderMath(); // Use our custom function
+					window.hasPendingMath = true;
+				} else {
+					console.log("Neither renderMathInElement nor renderMath function is available");
 				}
-			}`)
-			if renderErr != nil {
-				logs.Debugf("Attempt %d to render math failed: %v", attempt, renderErr)
-			} else {
-				logs.Debugf("Attempt %d to render math completed", attempt)
+			} catch (e) {
+				console.error("Error during math rendering:", e);
+				window.hasPendingMath = false;
 			}
-
-			// Brief pause between attempts
-			if attempt < 3 {
-				page.WaitForTimeout(1000)
-			}
+		}`)
+		if renderErr != nil {
+			logs.Warnf("Math rendering failed to start: %v", renderErr)
 		}
 
-		// Monitor for KaTeX completion using more sophisticated checks
-		waitStart := time.Now()
-		completed := false
-
-		// Check every second for up to 10 seconds for evidence of successful processing
-		for i := 0; i < 10; i++ {
-			result, evalErr := page.Evaluate(`() => {
-				// Look for KaTeX-specific signs of successful processing
-				const katexElementsCount = document.querySelectorAll('.katex').length;
-				const katexDisplayCount = document.querySelectorAll('.katex-display').length;
-				const renderComplete = !!window.katexRenderingComplete;
-				
-				return {
-					katexCount: katexElementsCount,
-					displayCount: katexDisplayCount,
-					renderComplete: renderComplete
-				};
-			}`)
-
-			if evalErr == nil && result != nil {
-				if resultMap, ok := result.(map[string]interface{}); ok {
-					katexCount := 0
-					displayCount := 0
-					completeSignaled := false
-
-					if cnt, ok := resultMap["katexCount"].(float64); ok {
-						katexCount = int(cnt)
-					}
-					if cnt, ok := resultMap["displayCount"].(float64); ok {
-						displayCount = int(cnt)
-					}
-					if complete, ok := resultMap["renderComplete"].(bool); ok {
-						completeSignaled = complete
-					}
-
-					// Consider successful if any KaTeX elements exist OR the render signal was sent
-					if katexCount > 0 || displayCount > 0 || completeSignaled {
-						completed = true
-						logs.Infof("Math rendering completed: %d inline, %d display KaTeX elements", katexCount, displayCount)
-						break
-					}
-				}
-			}
-			time.Sleep(1 * time.Second)
-		}
-
-		if !completed {
-			logs.Warnf("Math expressions may not have rendered completely after %v", time.Since(waitStart))
-		} else {
-			logs.Info("Math expressions rendering confirmed")
-		}
+		// Only wait a brief period for possible initial rendering
+		// We sacrifice complete rendering for avoiding timeouts
+		page.WaitForTimeout(2000)
+		logs.Infof("Math expressions check complete - proceeding (may be partially rendered)")
 	} else {
 		logs.Info("No math expressions detected in content")
 	}
 
-	// Final stability wait
-	page.WaitForTimeout(1000)
+	// Minimal final wait for visuals stability
+	page.WaitForTimeout(500)
 
 	// Determine screenshot options based on image format
 	var screenshotOptions playwright.PageScreenshotOptions
