@@ -255,49 +255,72 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		logs.Warnf("Body element not ready within timeout: %v", err)
 	}
 
-	// Ensure CDN JS dependencies are initialized
+	// Ensure CDN JS dependencies are loaded
 	logs.Info("Waiting for CDN resources to load...")
 	page.WaitForTimeout(1500)
 
-	// Wait for KaTeX rendering to complete by checking for rendered elements
+	// Wait for KaTeX rendering to complete by checking our custom completion marker
 	logs.Info("Waiting for KaTeX rendering to complete...")
-	katexComplete, katexErr := page.WaitForFunction(
-		`window.katexRenderingComplete === true || 
-		document.querySelector('.katex') !== null || 
-		Date.now() - startTime > 8000`,
-		playwright.PageWaitForFunctionOptions{
-			Timeout: playwright.Float(8000),
-		})
-
-	if katexErr != nil {
-		logs.Warnf("KaTeX rendering may not have finished: %v", katexErr)
-	} else {
-		logs.Debugf("KaTeX rendering completed: %v", katexComplete)
-	}
-
-	// Wait for Prism syntax highlighting to process
-	logs.Info("Waiting for syntax highlighting to complete...")
-	page.WaitForTimeout(500) // Allow Prism to process
-
-	// Wait for Mermaid diagrams to render by looking for SVG elements in mermaid divs
-	logs.Info("Waiting for Mermaid diagrams to render...")
-	mermaidComplete, mermaidErr := page.WaitForFunction(
-		`document.querySelectorAll('svg').length > 0 ||
-		document.querySelectorAll('.mermaid svg').length > 0 ||
-		Date.now() - startTime > 10000`,
+	katexResult, katexErr := page.WaitForFunction(
+		`() => {
+			// Check multiple conditions for KaTeX completion
+			return (window.katexRenderingComplete === true) || 
+			       (document.querySelectorAll('.katex').length > 0) ||
+			       ((Date.now() - startTime) > 10000); // 10 second maximum wait
+		}`,
 		playwright.PageWaitForFunctionOptions{
 			Timeout: playwright.Float(10000),
 		})
 
-	if mermaidErr != nil {
-		logs.Warnf("Mermaid rendering may not have finished: %v", mermaidErr)
+	if katexErr != nil {
+		logs.Warnf("KaTeX rendering timeout or error: %v", katexErr)
 	} else {
-		logs.Debugf("Mermaid rendering completed: %v", mermaidComplete)
+		logs.Debugf("KaTeX rendering completion result: %v", katexResult)
 	}
 
-	// Additional wait for any remaining animations or processes to complete
-	logs.Info("Waiting additional time for full render completion...")
-	page.WaitForTimeout(1000)
+	// Wait specifically for syntax highlighting, give Prism time to process
+	logs.Info("Waiting for Prism syntax highlighting to complete...")
+	prismResult, prismErr := page.WaitForFunction(
+		`() => {
+			// Check for any element that was highlighted by Prism (has .token class)
+			return (document.querySelectorAll('pre code[class*="lang-"]').length > 0) ||
+			       (document.querySelectorAll('pre code[class*="language-"]').length > 0) ||
+			       (document.querySelectorAll('.token').length > 0) ||
+			       ((Date.now() - startTime) > 5000); // 5 second maximum wait
+		}`,
+		playwright.PageWaitForFunctionOptions{
+			Timeout: playwright.Float(5000),
+		})
+
+	if prismErr != nil {
+		logs.Warnf("Prism highlighting timeout or error: %v", prismErr)
+	} else {
+		logs.Debugf("Prism highlighting completion result: %v", prismResult)
+	}
+
+	// Wait for Mermaid diagrams to render by looking for SVG content or completed markers
+	logs.Info("Waiting for Mermaid diagrams to render...")
+	mermaidResult, mermaidErr := page.WaitForFunction(
+		`() => {
+			// Check for any SVG elements (from Mermaid rendering), or Mermaid-specific classes
+			return (document.querySelectorAll('svg').length > 0) ||
+			       (document.querySelectorAll('.mermaid-diagram').length > 0) ||
+			       (document.querySelectorAll('.mermaid svg').length > 0) ||
+			       ((Date.now() - startTime) > 15000); // 15 second maximum wait for diagrams
+		}`,
+		playwright.PageWaitForFunctionOptions{
+			Timeout: playwright.Float(15000),
+		})
+
+	if mermaidErr != nil {
+		logs.Warnf("Mermaid rendering timeout or error: %v", mermaidErr)
+	} else {
+		logs.Debugf("Mermaid rendering completion result: %v", mermaidResult)
+	}
+
+	// Additional safety wait for any remaining processing to finish
+	logs.Info("Waiting final time for renders to stabilize...")
+	page.WaitForTimeout(2000) // More time for visual stabilization
 
 	// Optimize screenshot capture settings
 	var screenshotOptions playwright.PageScreenshotOptions

@@ -99,44 +99,56 @@
     <script>
         // Global marker to indicate rendering completion
         window.katexRenderingComplete = false;
-
-        // Configuration for all math rendering scenarios
-        const katexOptions = {
-            delimiters: [
-                {left: "$$", right: "$$", display: true},
-                {left: "$", right: "$", display: false},
-                {left: "\\(", right: "\\)", display: false},
-                {left: "\\[", right: "\\]", display: true}
-            ],
-            ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-            throwOnError: false // Don't crash if math has errors
-        };
-
-        // Function to attempt KaTeX rendering multiple ways
-        window.renderMath = function() {
-            try {
-                // Ensure the DOM is ready before rendering
-                if (document.body) {
-                    renderMathInElement(document.body, katexOptions);
-                    // Small delay to allow rendering to complete
-                    setTimeout(() => {
+        
+        // Ensure renderMathInElement is available before using it
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof renderMathInElement !== 'undefined') {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: "$$", right: "$$", display: true},
+                        {left: "$", right: "$", display: false},
+                        {left: "\\(", right: "\\)", display: false},
+                        {left: "\\[", right: "\\]", display: true}
+                    ],
+                    ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                    throwOnError: false
+                });
+                
+                // Check if rendering finished
+                setTimeout(() => {
+                    if (document.querySelector('.katex') !== null) {
                         window.katexRenderingComplete = true;
-                    }, 100);
-                }
-            } catch (e) {
-                console.warn("KaTeX rendering error:", e.message);
-                window.katexRenderingComplete = true; // Mark as done even if error
+                    }
+                }, 500);
+            } else {
+                window.katexRenderingComplete = true; // If KaTeX not available, just mark as done
             }
-        };
-
-        // Initial rendering - try multiple times with delays to ensure DOM is ready
-        if (document.readyState === 'loading') {
-            document.addEventListener("DOMContentLoaded", function() {
-                setTimeout(window.renderMath, 100);
-            });
-        } else {
-            // Even if not loading, still use a small delay to ensure content is inserted
-            setTimeout(window.renderMath, 100);
+        });
+        
+        // As fallback, if DOM already loaded
+        if (document.readyState === 'interactive' || document.readyState === 'complete') {
+            if (typeof renderMathInElement !== 'undefined') {
+                setTimeout(() => {
+                    renderMathInElement(document.body, {
+                        delimiters: [
+                            {left: "$$", right: "$$", display: true},
+                            {left: "$", right: "$", display: false},
+                            {left: "\\(", right: "\\)", display: false},
+                            {left: "\\[", right: "\\]", display: true}
+                        ],
+                        ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                        throwOnError: false
+                    });
+                    
+                    setTimeout(() => {
+                        if (document.querySelector('.katex') !== null) {
+                            window.katexRenderingComplete = true;
+                        }
+                    }, 500);
+                }, 50);
+            } else {
+                window.katexRenderingComplete = true;
+            }
         }
     </script>
 
@@ -167,55 +179,77 @@
     <!-- Mermaid JS - always enabled -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
     <script>
+        // Manually configure and initialize Mermaid
         mermaid.initialize({ 
-            startOnLoad: false,  // Use manual initialization
+            startOnLoad: false,  // Disable automatic start to have more control 
             theme: '{{.Theme}}',
-            securityLevel: 'loose' 
+            securityLevel: 'loose',
+            fontFamily: 'inherit',
+            fontSize: '14px'
         });
         
-        // Manually initialize mermaid diagram on dom elements that look like mermaid blocks
+        // Initialize mermaid after DOM is ready and KaTeX completes
         if (document.readyState === 'loading') {
             document.addEventListener("DOMContentLoaded", function() {
                 setTimeout(function() {
-                    // Initialize mermaid diagrams specifically
-                    const mermaids = document.querySelectorAll('.mermaid, [class*=mermaid]');
-                    const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
+                    // Process mermaid code blocks first
+                    const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid, pre.mermaid > code');
                     
-                    if(mermaids.length > 0) {
-                        mermaid.init(undefined, mermaids);
-                    }
+                    mermaidCodeBlocks.forEach(function(codeBlock, idx) {
+                        const preElement = codeBlock.parentElement;
+                        const graphDiv = document.createElement('div');
+                        graphDiv.className = 'mermaid-diagram';
+                        graphDiv.id = 'mermaid-diagram-' + idx;
+                        graphDiv.style.margin = '20px 0';
+                        
+                        // Replace the code block with a diagram container
+                        preElement.parentNode.replaceChild(graphDiv, preElement);
+                        
+                        // Render mermaid graph into the dedicated container
+                        mermaid.render(
+                            'generated-mermaid-' + idx,
+                            codeBlock.textContent,
+                            function(svgCode) {
+                                graphDiv.innerHTML = svgCode;
+                            }
+                        );
+                    });
                     
-                    if(mermaidCodeBlocks.length > 0) {
-                        mermaidCodeBlocks.forEach(function(codeBlock) {
-                            const parentPre = codeBlock.parentElement;
-                            parentPre.classList.add('mermaid');
-                            parentPre.removeAttribute('style'); // Remove syntax highlighting if present
-                            parentPre.innerHTML = codeBlock.textContent; // Just the raw diagram code
-                        });
-                        // Re-initialize now that we've set up the proper mermaid nodes
-                        mermaid.init();
+                    // Then run general init on any remaining mermaid elements
+                    const remainingMermaids = document.querySelectorAll('.mermaid, pre.mermaid, .mermaid-diagram');
+                    if(remainingMermaids.length > 0) {
+                        mermaid.init(remainingMermaids);
                     }
-                }, 200); // Give time after KaTeX and Prism run
+                }, 800); // Allow time for KaTeX, then process diagrams
             });
         } else {
+            // If already loaded, execute directly
             setTimeout(function() {
-                const mermaids = document.querySelectorAll('.mermaid, [class*=mermaid]');
-                const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
+                const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid, pre.mermaid > code');
                 
-                if(mermaids.length > 0) {
-                    mermaid.init(undefined, mermaids);
-                }
+                mermaidCodeBlocks.forEach(function(codeBlock, idx) {
+                    const preElement = codeBlock.parentElement;
+                    const graphDiv = document.createElement('div');
+                    graphDiv.className = 'mermaid-diagram';
+                    graphDiv.id = 'mermaid-diagram-' + idx;
+                    graphDiv.style.margin = '20px 0';
+                    
+                    preElement.parentNode.replaceChild(graphDiv, preElement);
+                    
+                    mermaid.render(
+                        'generated-mermaid-' + idx,
+                        codeBlock.textContent,
+                        function(svgCode) {
+                            graphDiv.innerHTML = svgCode;
+                        }
+                    );
+                });
                 
-                if(mermaidCodeBlocks.length > 0) {
-                    mermaidCodeBlocks.forEach(function(codeBlock) {
-                        const parentPre = codeBlock.parentElement;
-                        parentPre.classList.add('mermaid');
-                        parentPre.removeAttribute('style');
-                        parentPre.innerHTML = codeBlock.textContent;
-                    });
-                    mermaid.init();
+                const remainingMermaids = document.querySelectorAll('.mermaid, pre.mermaid, .mermaid-diagram');
+                if(remainingMermaids.length > 0) {
+                    mermaid.init(remainingMermaids);
                 }
-            }, 200);
+            }, 800);
         }
     </script>
 </body>

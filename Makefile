@@ -78,3 +78,7 @@ docker-build-release: ## Build the release Docker image
 # Alternative release that only rebuilds and pushes the release image (assumes base is already built)
 fast-release: docker-build-release docker-push-release ## Release using pre-built base image
 	@echo "Fast release complete. Release image pushed to $(DOCKER_REGISTRY)"
+
+run: docker-build-release ## Build and run the Docker image locally
+	-docker rm -f $(BINARY_NAME) || true
+	docker run --name=$(BINARY_NAME) -p 8080:8080 $(DOCKER_REGISTRY)/$(BINARY_NAME):$(IMAGE_TAG)
