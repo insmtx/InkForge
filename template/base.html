@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
-    
-    <!-- KaTeX CSS -->
-    {{if .KaTeXEnabled}}
+
+    <!-- KaTeX CSS - always enabled -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" integrity="sha384-GvrOXuhMATsiXqtIuwBpz/A4QppE6GJIY/GfU0/NIYiRcaHzRzJZMw/44htA8ZeM" crossorigin="anonymous">
-    {{end}}
+
+    <!-- Code syntax highlight CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" integrity="sha512-P9tLXQRiU2JW665Y/PAFYbMw8QbD7+Zr8Rq+rbJ/YHQqdgZQqT6rKB/xQ+wQtpFE9pSMjY28Jt5fl9J+Y9cQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
     <!-- Include custom CSS if provided -->
     {{if .CSS}}
         <style>{{.CSS}}</style>
     {{end}}
-    
+
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -25,108 +27,79 @@
             background-color: #fff;
             color: #333;
         }
-        
+
         @media (prefers-color-scheme: dark) {
             body {
                 background-color: #1a1a1a;
                 color: #e6e6e6;
             }
         }
-        
+
         {{if eq .Theme "dark"}}
         body {
             background-color: #1a1a1a;
             color: #e6e6e6;
         }
         {{end}}
-        
+
         h1, h2, h3, h4, h5, h6 {
             color: #2c3e50;
         }
-        
+
         code {
             background-color: #f5f5f5;
             padding: 2px 4px;
             border-radius: 3px;
             font-family: 'Monaco', 'Consolas', 'Ubuntu Mono', monospace;
         }
-        
+
         pre {
             background-color: #f5f5f5;
             padding: 10px;
             border-radius: 5px;
             overflow-x: auto;
         }
-        
+
         blockquote {
             border-left: 4px solid #ddd;
             padding-left: 15px;
             color: #666;
             margin-left: 0;
         }
-        
+
         table {
             border-collapse: collapse;
             width: 100%;
             margin: 1em 0;
         }
-        
+
         th, td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
         }
-        
+
         th {
             background-color: #f2f2f2;
         }
-        
-        {{if .MermaidEnabled}}
+
         .mermaid {
             text-align: center;
             margin: 2em 0;
         }
-        {{end}}
     </style>
 </head>
+
 <body>
     {{.Content}}
 
-    <!-- KaTeX JS -->
-    {{if .KaTeXEnabled}}
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3Tp7C9fdEKGHzqvEoSJN8ILpGNqpV4jpPJypHwmC/6eycPz6W7fUPXgyKs5M5lKMq98gR4g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-
-    <!-- Code syntax highlight CSS/JS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" integrity="sha512-P9tLXQRiU2JW665Y/PAFYbMw8QbD7+Zr7HwU2pE1U7YqDu8/ZqZm9ZnLcn+i/MZ+BFQJjSbr2NMdnW7BcQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js" integrity="sha512-YtIRpBM38R7y2FE+YL6LUjYUXX5JWsQzqP4HSu6i1GfNLRoeXe0ICUjwKJiPS5PuYy84zB/WY78c7gbB7H0w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" integrity="sha512-SkmE2RsZqJa+qP6lgBcD+W05hgYqNvKtDb+6MWCibxJL56a3R5rZPnCPiUfXWjw7FzC+ef2yVe3wcC4/7q30Q/" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
+    <!-- KaTeX JS - always enabled -->
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-9APjkHfWdCS7/LZCxHXpdrHue8g7/Bmw62h5SlZoju5ywJm0F0TqS1N8QXtK7a4p" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-y52rzLp0DgByN8NFGEivcw0/x584V4CK/EFLysqqMJFJ0C9jZ85EMO1csngCOmXmoiU" crossorigin="anonymous"></script>
     <script>
-
-        // Initialize Prism before KaTeX to ensure proper code highlighting
-        if (document.readyState === 'loading') {
-            document.addEventListener("DOMContentLoaded", function() {
-                setTimeout(() => {
-                    if (window.Prism) {
-                        Prism.highlightAll();
-                    }
-                }, 50); // Slightly before KaTeX to handle interop nicely
-            });
-        } else {
-            // Even if not loading, still a short delay
-            setTimeout(() => {
-                if (window.Prism) {
-                    Prism.highlightAll();
-                }
-            }, 50);
-        }
         // Global marker to indicate rendering completion
         window.katexRenderingComplete = false;
-        
+
         // Configuration for all math rendering scenarios
         const katexOptions = {
             delimiters: [
@@ -136,136 +109,115 @@
                 {left: "\\[", right: "\\]", display: true}
             ],
             ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
-            throwOnError: false, // Don't crash if math has errors
-            // Enable recognition of class="math" elements for gomarkdown-generated math
-            macros: {},
-            // Additionally look for elements with math class
-            strict: false // Be forgiving with errors
+            throwOnError: false // Don't crash if math has errors
         };
-        
-        // Extended element lookup for math
-        window.renderMathCustom = function(target) {
-            target = target || document.body;
-            
-            // If math elements exist with class "math", process them specially
-            const mathElements = target.querySelectorAll('.math');
-            for (let i = 0; i < mathElements.length; i++) {
-                const elem = mathElements[i];
-                const isDisplay = elem.className.includes('display');
-                
-                let texContent = elem.textContent || elem.innerText;
-                // Extract the math content inside delimiters
-                if (texContent.startsWith('\\(') && texContent.endsWith('\\)')) {
-                    texContent = texContent.substring(2, texContent.length - 2);
-                    katex.render(texContent, elem, {throwOnError: false, displayMode: false});
-                } else if (texContent.startsWith('\\[') && texContent.endsWith('\\]')) {
-                    texContent = texContent.substring(2, texContent.length - 2);
-                    katex.render(texContent, elem, {throwOnError: false, displayMode: true});
-                }
-            }
-            
-            // Then handle everything else normally for other delimiters
-            renderMathInElement(target, katexOptions);
-        };
-        
+
         // Function to attempt KaTeX rendering multiple ways
         window.renderMath = function() {
             try {
                 // Ensure the DOM is ready before rendering
                 if (document.body) {
-                    window.renderMathCustom(document.body);
+                    renderMathInElement(document.body, katexOptions);
                     // Small delay to allow rendering to complete
                     setTimeout(() => {
                         window.katexRenderingComplete = true;
-                    }, 200);
+                    }, 100);
                 }
             } catch (e) {
                 console.warn("KaTeX rendering error:", e.message);
                 window.katexRenderingComplete = true; // Mark as done even if error
             }
         };
-        
+
         // Initial rendering - try multiple times with delays to ensure DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener("DOMContentLoaded", function() {
-                setTimeout(window.renderMath, 150);
+                setTimeout(window.renderMath, 100);
             });
         } else {
             // Even if not loading, still use a small delay to ensure content is inserted
-            setTimeout(window.renderMath, 150);
+            setTimeout(window.renderMath, 100);
         }
     </script>
-    {{end}}
 
-    {{if .MermaidEnabled}}
+    <!-- Prism JS for code highlighting - always enabled -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js" integrity="sha512-YtIRpBM38R7y2FE+YL6LUjYUXX5JWsQzqP4HSu6i1GfNLRoeXe0ICUjwKJiPS5PuYy84zB/WY78c7gbB7H0w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" integrity="sha512-SkmE2RsZqJa+qP6lgBcD+W05hgYqNvKtDb+6MWCibxJL56a3R5rZPnCPiUfXWjw7FzC+ef2yVe3wcC4/7q30Q/" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- Apply highlighting to all code blocks immediately after DOM loads -->
+    <script>
+        if (document.readyState === 'loading') {
+            document.addEventListener("DOMContentLoaded", function() {
+                // Delay slightly to ensure content is in place
+                setTimeout(() => {
+                    if (window.Prism) {
+                        window.Prism.highlightAll();
+                    }
+                }, 50); 
+            });
+        } else {
+            setTimeout(() => {
+                if (window.Prism) {
+                    window.Prism.highlightAll();
+                }
+            }, 50);
+        }
+    </script>
+
+    <!-- Mermaid JS - always enabled -->
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
     <script>
         mermaid.initialize({ 
-            startOnLoad: false,  // Manual start to have more control
+            startOnLoad: false,  // Use manual initialization
             theme: '{{.Theme}}',
-            securityLevel: 'loose',
-            // Setup for detecting and processing markdown-created mermaid blocks
+            securityLevel: 'loose' 
         });
         
-        // After DOM loads, convert mermaid code blocks to diagrams
+        // Manually initialize mermaid diagram on dom elements that look like mermaid blocks
         if (document.readyState === 'loading') {
             document.addEventListener("DOMContentLoaded", function() {
                 setTimeout(function() {
-                    // Find all mermaid code blocks and turn them into diagrams
-                    const codeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
-                    if (codeBlocks.length > 0) {
-                        Array.from(codeBlocks).forEach(function(block, index) {
-                            // Get the content of the code block
-                            const codeContent = block.textContent.trim();
-                            
-                            // Create a container div for the mermaid SVG
-                            const container = document.createElement('div');
-                            container.className = 'mermaid-diagram-' + index;
-                            container.classList.add('mermaid');
-                            container.setAttribute('data-graph-id', 'graph-' + index);
-                            
-                            // Replace the code block with the SVG container
-                            block.parentElement.parentNode.replaceChild(container, block.parentElement);
-                            
-                            // Render the mermaid chart into the new container
-                            mermaid.render(
-                                'graph-' + index,
-                                codeContent,
-                                function(svgGraph) {
-                                    container.innerHTML = svgGraph;
-                                }
-                            );
-                        });
+                    // Initialize mermaid diagrams specifically
+                    const mermaids = document.querySelectorAll('.mermaid, [class*=mermaid]');
+                    const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
+                    
+                    if(mermaids.length > 0) {
+                        mermaid.init(undefined, mermaids);
                     }
-                }, 300);
+                    
+                    if(mermaidCodeBlocks.length > 0) {
+                        mermaidCodeBlocks.forEach(function(codeBlock) {
+                            const parentPre = codeBlock.parentElement;
+                            parentPre.classList.add('mermaid');
+                            parentPre.removeAttribute('style'); // Remove syntax highlighting if present
+                            parentPre.innerHTML = codeBlock.textContent; // Just the raw diagram code
+                        });
+                        // Re-initialize now that we've set up the proper mermaid nodes
+                        mermaid.init();
+                    }
+                }, 200); // Give time after KaTeX and Prism run
             });
         } else {
             setTimeout(function() {
-                // Same as above for already-loaded content
-                const codeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
-                if (codeBlocks.length > 0) {
-                    Array.from(codeBlocks).forEach(function(block, index) {
-                        const codeContent = block.textContent.trim();
-                        
-                        const container = document.createElement('div');
-                        container.className = 'mermaid-diagram-' + index;
-                        container.classList.add('mermaid');
-                        container.setAttribute('data-graph-id', 'graph-' + index);
-                        
-                        block.parentElement.parentNode.replaceChild(container, block.parentElement);
-                        
-                        mermaid.render(
-                            'graph-' + index,
-                            codeContent,
-                            function(svgGraph) {
-                                container.innerHTML = svgGraph;
-                            }
-                        );
+                const mermaids = document.querySelectorAll('.mermaid, [class*=mermaid]');
+                const mermaidCodeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
+                
+                if(mermaids.length > 0) {
+                    mermaid.init(undefined, mermaids);
+                }
+                
+                if(mermaidCodeBlocks.length > 0) {
+                    mermaidCodeBlocks.forEach(function(codeBlock) {
+                        const parentPre = codeBlock.parentElement;
+                        parentPre.classList.add('mermaid');
+                        parentPre.removeAttribute('style');
+                        parentPre.innerHTML = codeBlock.textContent;
                     });
-                } 
-            }, 300);
+                    mermaid.init();
+                }
+            }, 200);
         }
     </script>
-    {{end}}
 </body>
+
 </html>
