@@ -85,6 +85,7 @@ func NewPlaywrightRenderer() (*PlaywrightRenderer, error) {
 		return nil, fmt.Errorf("failed to launch browser: %w", err)
 	}
 
+	// Increase context creation timeout for complex rendering
 	context, err := browser.NewContext()
 	if err != nil {
 		browser.Close()
@@ -206,6 +207,113 @@ func (pp *PagePool) releasePage(page playwright.Page) error {
 		page.Close()
 		return nil
 	}
+}
+
+// RenderImage renders the given HTML content to an image using pages from the pool
+func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width, height int, scale float64, imgFormat string) ([]byte, error) {
+	logs.Infof("Starting image rendering process - Width: %d, Height: %d, Scale: %.2f, Format: %s", width, height, scale, imgFormat)
+
+	// Acquire a page from pool with shorter timeout to improve concurrency
+	page, err := r.pagePool.acquirePage(10 * time.Second)
+	if err != nil {
+		logs.Errorf("Failed to acquire page from pool: %v", err)
+		return nil, fmt.Errorf("failed to acquire page: %w", err)
+	}
+
+	defer func() {
+		if closeErr := r.pagePool.releasePage(page); closeErr != nil {
+			logs.Errorf("Warning: Failed to return page to pool: %v", closeErr)
+		} else {
+			logs.Debugf("Successfully returned page to pool after rendering")
+		}
+	}()
+
+	// Set viewport size efficiently
+	logs.Infof("Setting viewport size to %dx%d", width, height)
+	if err := page.SetViewportSize(width, height); err != nil {
+		logs.Errorf("Failed to set viewport size: %v", err)
+		return nil, fmt.Errorf("failed to set viewport: %w", err)
+	}
+
+	// Set HTML content - use faster loading approach
+	logs.Debugf("Setting HTML content (%d characters)", len(html))
+
+	// Instead of navigating to blank, set content directly with fast resolving
+	if err := page.SetContent(html, playwright.PageSetContentOptions{
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		Timeout:   playwright.Float(15000), // Reduce to 15 seconds to speed up
+	}); err != nil {
+		logs.Errorf("Failed to set page content: %v", err)
+		return nil, fmt.Errorf("failed to set page content: %w", err)
+	}
+
+	// Fast synchronous detection for mathematical expressions without extra waiting
+	logs.Debug("Checking for math expressions...")
+	hasMathExpressions := checkForMathExpressions(html)
+
+	if hasMathExpressions {
+		logs.Infof("Math expressions detected, optimizing rendering for speed...")
+
+		// Attempt to trigger rendering but very early on
+		_, renderErr := page.Evaluate(`() => {
+			if (window.renderMath) {
+				window.renderMath();
+			} else if (window.renderMathInElement) {
+				renderMathInElement(document.body, {
+					delimiters: [
+						{left: "$$", right: "$$", display: true},
+						{left: "$", right: "$", display: false},
+						{left: "\\(", right: "\\)", display: false},
+						{left: "\\[", right: "\\]", display: true}
+					],
+					ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+					throwOnError: false
+				});
+			}
+		}`)
+		if renderErr != nil {
+			logs.Warnf("Quick math rendering failed: %v", renderErr)
+		}
+
+		// Very brief wait to let math rendering start, but prioritize speed over full completion
+		page.WaitForTimeout(500) // Just enough for initial processing
+	} else {
+		logs.Debug("No math expressions detected in content")
+	}
+
+	// Optimize screenshot capture settings for speed
+	var screenshotOptions playwright.PageScreenshotOptions
+
+	switch imgFormat {
+	case "jpeg", "jpg":
+		screenshotOptions = playwright.PageScreenshotOptions{
+			Type:     playwright.ScreenshotTypeJpeg,
+			Quality:  playwright.Int(90),
+			FullPage: playwright.Bool(false),
+		}
+	case "png":
+		screenshotOptions = playwright.PageScreenshotOptions{
+			Type:     playwright.ScreenshotTypePng,
+			FullPage: playwright.Bool(false),
+		}
+	default:
+		screenshotOptions = playwright.PageScreenshotOptions{
+			Type:     playwright.ScreenshotTypePng,
+			FullPage: playwright.Bool(false),
+		}
+	}
+
+	logs.Debugf("Taking screenshot with options - Type: %s", screenshotOptions.Type)
+
+	// Take the screenshot optimally
+	screenshot, err := page.Screenshot(screenshotOptions)
+	if err != nil {
+		logs.Errorf("Failed to take screenshot: %v", err)
+		return nil, fmt.Errorf("failed to take screenshot: %w", err)
+	}
+
+	logs.Infof("Successfully captured screenshot, size: %d bytes", len(screenshot))
+	return screenshot, nil
 }
 
 // RenderImage renders the given HTML content to an image using pages from the pool
