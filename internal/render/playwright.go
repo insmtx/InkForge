@@ -228,7 +228,7 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		return nil, fmt.Errorf("failed to set viewport: %w", err)
 	}
 
-	// Set HTML content but with more tolerant options to prevent timeout during external resource loading
+	// Set HTML content with optimized parameters
 	logs.Infof("Setting HTML content (%d characters)", len(html))
 
 	// Navigate to a blank page first to ensure fresh state
@@ -236,114 +236,139 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		logs.Warnf("Could not navigate to blank page: %v", err)
 	}
 
-	// Set content with more relaxed waitUntil condition to avoid hanging on external resource loads
+	// Set content with more predictable waitUntil condition
 	if err := page.SetContent(html, playwright.PageSetContentOptions{
-		WaitUntil: playwright.WaitUntilStateDomcontentloaded, // Changed from networkidle to domcontentload to avoid timeout on network resources
-		Timeout:   playwright.Float(60000),                   // 60 seconds but with faster resolution
+		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		Timeout:   playwright.Float(60000), // 60 seconds
 	}); err != nil {
 		logs.Errorf("Failed to set page content: %v", err)
 		return nil, fmt.Errorf("failed to set page content: %w", err)
 	}
 
-	// More thorough waiting strategy for dynamic content like KaTeX
-	logs.Info("Waiting for content to load...")
-
-	// Wait for DOM to be ready
+	// Wait for essential DOM elements
+	logs.Info("Waiting for document body to be ready...")
 	if _, err := page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
 		State:   playwright.WaitForSelectorStateAttached,
-		Timeout: playwright.Float(10000), // 10 seconds for DOM to be ready
+		Timeout: playwright.Float(10000),
 	}); err != nil {
-		logs.Warnf("Could not wait for body selector: %v", err)
+		logs.Warnf("Body element not immediately ready: %v", err)
 	}
 
-	// Check if page has KaTeX elements that need to be processed
-	hasKaTeXPatternResult, patternCheckErr := page.Evaluate(`() => {
-		const bodyInnerHTML = document.body.innerHTML;
-		// Check for KaTeX delimiter patterns in the content
-		const hasDollarFormula = bodyInnerHTML.includes('$');
-		const hasEscapeParens = bodyInnerHTML.includes('\\(') || bodyInnerHTML.includes('\\)');
-		const hasEscapeBrackets = bodyInnerHTML.includes('\\[') || bodyInnerHTML.includes('\\]');
+	// Check for mathematical expression patterns
+	hasMathPatternResult, patternCheckErr := page.Evaluate(`() => {
+		const content = document.body.innerHTML.toLowerCase();
+		// Comprehensive check for maths-related patterns - LaTeX commands, delimiters and symbols
+		const hasDollarDelimiters = /\$.*?\$/g.test(content) || /\$\$.*?\$\$/g.test(content);
+		const hasEscapedDelimiters = /\\\\[([](?:[^)\\]|\\.)*?\\\\[)\]]/g.test(content);
+		const hasLatexCommands = /(\\frac|\\sqrt|\\sum|\\int|\\lim|\\alpha|\\beta|\\gamma|\\delta|\\infty)/.test(content);
 		
-		return hasDollarFormula || hasEscapeParens || hasEscapeBrackets;
+		return hasDollarDelimiters || hasEscapedDelimiters || hasLatexCommands;
 	}`)
 
 	if patternCheckErr != nil {
-		logs.Warnf("Could not check for KaTeX patterns: %v", patternCheckErr)
-		hasKaTeXPatternResult = true // Default to true if we can't check
+		logs.Warnf("Could not analyze content for math patterns: %v", patternCheckErr)
+		hasMathPatternResult = true // Safely assume math exists if we can't check
 	}
 
-	hasKaTeX := false
-	if val, ok := hasKaTeXPatternResult.(bool); ok {
-		hasKaTeX = val
+	hasMathExpressions := false
+	if val, ok := hasMathPatternResult.(bool); ok {
+		hasMathExpressions = val
 	}
 
-	if hasKaTeX {
-		logs.Info("Math formulas detected, waiting for KaTeX rendering...")
+	if hasMathExpressions {
+		logs.Info("Math expressions detected, triggering KaTeX rendering...")
 
-		// Allow some time for CDN resources to load (but not indefinitely)
-		page.WaitForTimeout(5000) // Give it maximum 5 seconds to load KaTeX resources
+		// Ensure all resources load by waiting extra time and manually triggering render
+		page.WaitForTimeout(3000) // Short timeout to allow resources to potentially load
 
-		// Attempt manual KaTeX rendering if available
-		_, manualRenderErr := page.Evaluate(`() => {
-			// Make sure renderMath is available or retry
-			if (typeof renderMathInElement !== 'undefined' && document.body) {
-				renderMathInElement(document.body, {
-					delimiters: [
-						{left: "$$", right: "$$", display: true},
-						{left: "$", right: "$", display: false},
-						{left: "\\(", right: "\\)", display: false},
-						{left: "\\[", right: "\\]", display: true}
-					],
-					ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
-				});
-				window.katexRenderingComplete = true;
-			} else if (window.katex) {
-				window.katexRenderingComplete = true; // Assume rendering might be in progress
+		// Try to trigger math rendering multiple times in case of async loading
+		for attempt := 1; attempt <= 3; attempt++ {
+			_, renderErr := page.Evaluate(`() => {
+				if (window.renderMath) {
+					window.renderMath();
+				} else if (typeof renderMathInElement !== 'undefined' && window.katexOptions) {
+					// Fallback rendering for when auto-render didn't work
+					renderMathInElement(document.body, window.katexOptions || {
+						delimiters: [
+							{left: "$$", right: "$$", display: true},
+							{left: "$", right: "$", display: false},
+							{left: "\\(", right: "\\)", display: false},
+							{left: "\\[", right: "\\]", display: true}
+						],
+						ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+						throwOnError: false
+					});
+					window.katexRenderingComplete = true;
+				}
+			}`)
+			if renderErr != nil {
+				logs.Debugf("Attempt %d to render math failed: %v", attempt, renderErr)
+			} else {
+				logs.Debugf("Attempt %d to render math completed", attempt)
 			}
-		}`)
-		if manualRenderErr != nil {
-			logs.Warnf("Could not trigger manual KaTeX rendering: %v", manualRenderErr)
+
+			// Brief pause between attempts
+			if attempt < 3 {
+				page.WaitForTimeout(1000)
+			}
 		}
 
-		// Wait up to 10 more seconds specifically for KaTeX rendered elements
-		katexWaitStart := time.Now()
-		katexFinished := false
+		// Monitor for KaTeX completion using more sophisticated checks
+		waitStart := time.Now()
+		completed := false
 
-		// Use a polling approach instead of waiting forever
-		for i := 0; i < 10; i++ { // 10 iterations * 1 sec = 10 seconds max
+		// Check every second for up to 10 seconds for evidence of successful processing
+		for i := 0; i < 10; i++ {
 			result, evalErr := page.Evaluate(`() => {
-				// Check for rendered KaTeX elements or completion flag
-				const katexElements = document.querySelectorAll('.katex').length;
-				const completeFlag = window.katexRenderingComplete === true;
-				return { count: katexElements, ready: completeFlag };
+				// Look for KaTeX-specific signs of successful processing
+				const katexElementsCount = document.querySelectorAll('.katex').length;
+				const katexDisplayCount = document.querySelectorAll('.katex-display').length;
+				const renderComplete = !!window.katexRenderingComplete;
+				
+				return {
+					katexCount: katexElementsCount,
+					displayCount: katexDisplayCount,
+					renderComplete: renderComplete
+				};
 			}`)
 
 			if evalErr == nil && result != nil {
 				if resultMap, ok := result.(map[string]interface{}); ok {
-					count := 0
-					if cnt, ok := resultMap["count"].(float64); ok {
-						count = int(cnt)
+					katexCount := 0
+					displayCount := 0
+					completeSignaled := false
+
+					if cnt, ok := resultMap["katexCount"].(float64); ok {
+						katexCount = int(cnt)
+					}
+					if cnt, ok := resultMap["displayCount"].(float64); ok {
+						displayCount = int(cnt)
+					}
+					if complete, ok := resultMap["renderComplete"].(bool); ok {
+						completeSignaled = complete
 					}
 
-					if ready, ok := resultMap["ready"].(bool); ok && ready || count > 0 {
-						katexFinished = true
-						logs.Infof("KaTeX rendered %d element(s)", count)
+					// Consider successful if any KaTeX elements exist OR the render signal was sent
+					if katexCount > 0 || displayCount > 0 || completeSignaled {
+						completed = true
+						logs.Infof("Math rendering completed: %d inline, %d display KaTeX elements", katexCount, displayCount)
 						break
 					}
 				}
 			}
-
-			time.Sleep(1 * time.Second) // Brief pause between checks
+			time.Sleep(1 * time.Second)
 		}
 
-		if !katexFinished {
-			logs.Warnf("Math elements might still be processing after max timeout: %s", time.Since(katexWaitStart))
+		if !completed {
+			logs.Warnf("Math expressions may not have rendered completely after %v", time.Since(waitStart))
+		} else {
+			logs.Info("Math expressions rendering confirmed")
 		}
 	} else {
-		logs.Info("No math formulas detected in content")
+		logs.Info("No math expressions detected in content")
 	}
 
-	// Final wait to ensure visuals are stable
+	// Final stability wait
 	page.WaitForTimeout(1000)
 
 	// Determine screenshot options based on image format

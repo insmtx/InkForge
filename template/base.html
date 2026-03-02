@@ -100,46 +100,44 @@
         // Global marker to indicate rendering completion
         window.katexRenderingComplete = false;
         
-        // Initial rendering if content exists
-        if (document.readyState !== 'loading') {
-            renderMathInElement(document.body, {
-                delimiters: [
-                    {left: "$$", right: "$$", display: true},
-                    {left: "$", right: "$", display: false},
-                    {left: "\\(", right: "\\)", display: false},
-                    {left: "\\[", right: "\\]", display: true}
-                ],
-                ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
-            });
-            window.katexRenderingComplete = true;
-        } else {
-            document.addEventListener("DOMContentLoaded", function() {
-                renderMathInElement(document.body, {
-                    delimiters: [
-                        {left: "$$", right: "$$", display: true},
-                        {left: "$", right: "$", display: false},
-                        {left: "\\(", right: "\\)", display: false},
-                        {left: "\\[", right: "\\]", display: true}
-                    ],
-                    ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
-                });
-                window.katexRenderingComplete = true;
-            });
-        }
-        
-        // Helper function to render math after dynamic content insertion
-        window.renderMath = function() {
-            renderMathInElement(document.body, {
-                delimiters: [
-                    {left: "$$", right: "$$", display: true},
-                    {left: "$", right: "$", display: false},
-                    {left: "\\(", right: "\\)", display: false},
-                    {left: "\\[", right: "\\]", display: true}
-                ],
-                ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
-            });
-            window.katexRenderingComplete = true;
+        // Configuration for all math rendering scenarios
+        const katexOptions = {
+            delimiters: [
+                {left: "$$", right: "$$", display: true},
+                {left: "$", right: "$", display: false},
+                {left: "\\(", right: "\\)", display: false},
+                {left: "\\[", right: "\\]", display: true}
+            ],
+            ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+            throwOnError: false // Don't crash if math has errors
         };
+        
+        // Function to attempt KaTeX rendering multiple ways
+        window.renderMath = function() {
+            try {
+                // Ensure the DOM is ready before rendering
+                if (document.body) {
+                    renderMathInElement(document.body, katexOptions);
+                    // Small delay to allow rendering to complete
+                    setTimeout(() => {
+                        window.katexRenderingComplete = true;
+                    }, 100);
+                }
+            } catch (e) {
+                console.warn("KaTeX rendering error:", e.message);
+                window.katexRenderingComplete = true; // Mark as done even if error
+            }
+        };
+        
+        // Initial rendering - try multiple times with delays to ensure DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener("DOMContentLoaded", function() {
+                setTimeout(window.renderMath, 100);
+            });
+        } else {
+            // Even if not loading, still use a small delay to ensure content is inserted
+            setTimeout(window.renderMath, 100);
+        }
     </script>
     {{end}}
 
