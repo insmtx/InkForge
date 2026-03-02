@@ -49,33 +49,81 @@ func NewPlaywrightRenderer() (*PlaywrightRenderer, error) {
 
 // RenderImage renders the given HTML content to an image
 func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width, height int, scale float64, imgFormat string) ([]byte, error) {
-	// Note: This is a conceptual implementation
-	// In the actual production code, we'd use playwright APIs to create a browser
-	// page, render the HTML, and capture a screenshot.
+	logs.Infof("Starting image rendering process - Width: %d, Height: %d, Scale: %.2f, Format: %s", width, height, scale, imgFormat)
 
-	// Initialize browser page
-	// page, err := r.context.NewPage()
-	// if err != nil { ... }
+	// Create a new page for each render to ensure clean state
+	page, err := r.context.NewPage()
+	if err != nil {
+		logs.Errorf("Failed to create new browser page: %v", err)
+		return nil, fmt.Errorf("failed to create browser page: %w", err)
+	}
+
+	defer func() {
+		if closeErr := page.Close(); closeErr != nil {
+			logs.Errorf("Warning: Failed to close browser page: %v", closeErr)
+		}
+	}()
 
 	// Set viewport size
-	// err = page.SetViewportSize(width, height)
-	// if err != nil { ... }
+	logs.Infof("Setting viewport size to %dx%d", width, height)
+	if err := page.SetViewportSize(width, height); err != nil {
+		logs.Errorf("Failed to set viewport size: %v", err)
+		return nil, fmt.Errorf("failed to set viewport: %w", err)
+	}
 
 	// Set HTML content
-	// err = page.SetContent(html, playwright.PageSetContentOptions{...})
-	// if err != nil { ... }
+	logs.Infof("Setting HTML content (%d characters)", len(html))
+	if err := page.SetContent(html, playwright.PageSetContentOptions{
+		WaitUntil: playwright.WaitUntilStateLoad,
+	}); err != nil {
+		logs.Errorf("Failed to set page content: %v", err)
+		return nil, fmt.Errorf("failed to set page content: %w", err)
+	}
 
-	// Wait for content to load
-	// page.WaitForSelector("body", ...)
-	// time.Sleep(3 * time.Second)
+	// Wait for the content to fully load
+	logs.Info("Waiting for content to load...")
+	if _, err := page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
+		State: playwright.WaitForSelectorStateAttached,
+	}); err != nil {
+		logs.Warnf("Could not wait for body selector: %v", err)
+	}
 
-	// Create screenshot
-	// screenshotBytes, _ := page.Screenshot(screenshotOptions)
+	// Additional wait to ensure resources load properly
+	page.WaitForTimeout(2000)
 
-	// For now return an empty response since the actual Playwright API integration
-	// requires the correct version/types which varies
+	// Determine screenshot options based on image format
+	var screenshotOptions playwright.PageScreenshotOptions
 
-	return []byte{}, fmt.Errorf("actual screenshot implementation depends on your playwright-go installation")
+	switch imgFormat {
+	case "jpeg", "jpg":
+		screenshotOptions = playwright.PageScreenshotOptions{
+			Type:     playwright.ScreenshotTypeJpeg,
+			Quality:  playwright.Int(90),
+			FullPage: playwright.Bool(false),
+		}
+	case "png":
+		screenshotOptions = playwright.PageScreenshotOptions{
+			Type:     playwright.ScreenshotTypePng,
+			FullPage: playwright.Bool(false),
+		}
+	default:
+		screenshotOptions = playwright.PageScreenshotOptions{
+			Type:     playwright.ScreenshotTypePng,
+			FullPage: playwright.Bool(false),
+		}
+	}
+
+	logs.Infof("Taking screenshot with options - Type: %s", screenshotOptions.Type)
+
+	// Take the screenshot
+	screenshot, err := page.Screenshot(screenshotOptions)
+	if err != nil {
+		logs.Errorf("Failed to take screenshot: %v", err)
+		return nil, fmt.Errorf("failed to take screenshot: %w", err)
+	}
+
+	logs.Infof("Successfully captured screenshot, size: %d bytes", len(screenshot))
+	return screenshot, nil
 }
 
 // Close releases the resources held by the renderer

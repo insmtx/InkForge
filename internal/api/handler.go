@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ygpkg/yg-go/logs"
 
 	"github.com/insmtx/InkForge/internal/model"
 	"github.com/insmtx/InkForge/internal/render"
@@ -34,26 +35,30 @@ func MarkdownToImageHandler(ctx *gin.Context) {
 		return
 	}
 
+	// Log incoming request
+	logs.Infof("Received markdown to image request with title: %s, width: %d, height: %d", req.Title, req.Width, req.Height)
+
 	// Validate the request
 	if err := renderEngine.ValidateRequest(&req); err != nil {
+		logs.Errorf("Request validation failed: %v", err)
 		ctx.JSON(http.StatusBadRequest, model.ErrorResponse(int(model.ValidationFailedCode), err.Error()))
 		return
 	}
 
 	// Start timing the conversion
 	startTime := time.Now()
+	logs.Infof("Starting conversion process at %v", startTime)
 
 	// Process the conversion synchronously
 	result, err := renderEngine.RenderMarkdownToImage(context.Background(), &req)
 	if err != nil {
+		logs.Errorf("Conversion failed after %v: %v", time.Since(startTime), err)
 		ctx.JSON(http.StatusInternalServerError, model.ErrorResponse(int(model.ConversionFailedCode), err.Error()))
 		return
 	}
 
 	duration := time.Since(startTime)
-
-	// Log the processing time for monitoring purposes
-	_ = duration // Will be used for logging in a complete implementation
+	logs.Infof("Successfully completed conversion in %v, result size: %d bytes", duration, len(result.ImageData))
 
 	// Set image headers and return the image directly
 	filename := "inkforge-" + startTime.Format("20060102-150405") + "." + result.ImageFormat

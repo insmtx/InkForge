@@ -14,6 +14,7 @@ import (
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
+	"github.com/ygpkg/yg-go/logs"
 
 	"github.com/insmtx/InkForge/internal/model"
 )
@@ -53,30 +54,40 @@ func (e *RenderEngine) loadTemplates() error {
 	// Read the base template file content
 	templateDir := filepath.Join("template")
 	baseTemplatePath := filepath.Join(templateDir, "base.html")
+	logs.Infof("Loading template from path: %s", baseTemplatePath)
 
 	content, err := ioutil.ReadFile(baseTemplatePath)
 	if err != nil {
+		logs.Errorf("Failed to read base template: %v", err)
 		return fmt.Errorf("failed to read base template: %w", err)
 	}
+	logs.Infof("Successfully read base template, size: %d bytes", len(content))
 
 	tmpl, err := template.New("base").Parse(string(content))
 	if err != nil {
+		logs.Errorf("Failed to parse base template: %v", err)
 		return fmt.Errorf("failed to parse base template: %w", err)
 	}
+	logs.Info("Successfully parsed base template")
 
 	e.templates["base"] = tmpl
+	logs.Info("Template successfully loaded into engine cache")
 	return nil
 }
 
 // RenderMarkdownToImage converts Markdown content to an image
 func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.MarkdownConversionRequest) (*model.MarkdownConversionResponse, error) {
 	startTime := time.Now()
+	logs.Infof("Starting markdown to image conversion - Title: %s, Content length: %d chars", req.Title, len(req.Content))
 
 	// Convert Markdown to HTML
+	logs.Infof("Converting markdown to HTML...")
 	htmlContent, err := e.convertMarkdownToHTML(req.Content)
 	if err != nil {
+		logs.Errorf("Failed to convert markdown to HTML: %v", err)
 		return nil, fmt.Errorf("failed to convert markdown to HTML: %w", err)
 	}
+	logs.Infof("Markdown converted to HTML, HTML length: %d chars", len(htmlContent))
 
 	// Prepare template data
 	templateData := map[string]interface{}{
@@ -91,17 +102,22 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 	var buf bytes.Buffer
 	tmpl, exists := e.templates["base"]
 	if !exists {
+		logs.Errorf("Base template not found in cache")
 		return nil, fmt.Errorf("base template not found")
 	}
 
+	logs.Infof("Executing template with title: %s", req.Title)
 	if err := tmpl.Execute(&buf, templateData); err != nil {
+		logs.Errorf("Failed to execute template: %v", err)
 		return nil, fmt.Errorf("failed to execute template: %w", err)
 	}
+	logs.Info("Template executed successfully")
 
 	// Process custom CSS/JS if provided in request
 	finalHTML := buf.String()
 	if len(req.Headers) > 0 {
 		// Add custom headers if needed - implementation would go here
+		logs.Infof("Applying %d custom headers", len(req.Headers))
 	}
 
 	width := req.Width
@@ -121,13 +137,18 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 		imgFormat = "png"
 	}
 
+	logs.Infof("Preparing image render with dimensions: %dx%d, scale: %.2f, format: %s", width, height, scale, imgFormat)
+
 	// Generate the image using Playwright
 	imageData, err := e.renderer.RenderImage(ctx, finalHTML, width, height, scale, imgFormat)
 	if err != nil {
+		logs.Errorf("Failed to render image after preparing parameters: %v", err)
 		return nil, fmt.Errorf("failed to render image: %w", err)
 	}
+	logs.Infof("Image rendered successfully, size: %d bytes", len(imageData))
 
 	duration := time.Since(startTime)
+	logs.Infof("Completed markdown to image conversion in %v", duration)
 
 	response := &model.MarkdownConversionResponse{
 		ImageData:   imageData,
