@@ -94,9 +94,36 @@
 
     <!-- KaTeX JS -->
     {{if .KaTeXEnabled}}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3Tp7C9fdEKGHzqvEoSJN8ILpGNqpV4jpPJypHwmC/6eycPz6W7fUPXgyKs5M5lKMq98gR4g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+
+    <!-- Code syntax highlight CSS/JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" integrity="sha512-P9tLXQRiU2JW665Y/PAFYbMw8QbD7+Zr7HwU2pE1U7YqDu8/ZqZm9ZnLcn+i/MZ+BFQJjSbr2NMdnW7BcQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js" integrity="sha512-YtIRpBM38R7y2FE+YL6LUjYUXX5JWsQzqP4HSu6i1GfNLRoeXe0ICUjwKJiPS5PuYy84zB/WY78c7gbB7H0w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" integrity="sha512-SkmE2RsZqJa+qP6lgBcD+W05hgYqNvKtDb+6MWCibxJL56a3R5rZPnCPiUfXWjw7FzC+ef2yVe3wcC4/7q30Q/" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js" integrity="sha384-9APjkHfWdCS7/LZCxHXpdrHue8g7/Bmw62h5SlZoju5ywJm0F0TqS1N8QXtK7a4p" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" integrity="sha384-y52rzLp0DgByN8NFGEivcw0/x584V4CK/EFLysqqMJFJ0C9jZ85EMO1csngCOmXmoiU" crossorigin="anonymous"></script>
     <script>
+
+        // Initialize Prism before KaTeX to ensure proper code highlighting
+        if (document.readyState === 'loading') {
+            document.addEventListener("DOMContentLoaded", function() {
+                setTimeout(() => {
+                    if (window.Prism) {
+                        Prism.highlightAll();
+                    }
+                }, 50); // Slightly before KaTeX to handle interop nicely
+            });
+        } else {
+            // Even if not loading, still a short delay
+            setTimeout(() => {
+                if (window.Prism) {
+                    Prism.highlightAll();
+                }
+            }, 50);
+        }
         // Global marker to indicate rendering completion
         window.katexRenderingComplete = false;
         
@@ -176,36 +203,66 @@
         mermaid.initialize({ 
             startOnLoad: false,  // Manual start to have more control
             theme: '{{.Theme}}',
-            securityLevel: 'loose'  // Allow more chart types
+            securityLevel: 'loose',
+            // Setup for detecting and processing markdown-created mermaid blocks
         });
         
-        // Manually invoke Mermaid after DOM is ready and content is processed
+        // After DOM loads, convert mermaid code blocks to diagrams
         if (document.readyState === 'loading') {
             document.addEventListener("DOMContentLoaded", function() {
                 setTimeout(function() {
-                    // Check for any existing Mermaid code blocks and render them
-                    const mermaidBlocks = document.querySelectorAll('pre code.language-mermaid, pre.mermaid, .mermaid');
-                    if (mermaidBlocks.length > 0) {
-                        mermaid.run({
-                           nodes: mermaidBlocks,
-                           suppressErrors: true
-                        }).catch(function(error) {
-                           console.error("Mermaid render error:", error);
+                    // Find all mermaid code blocks and turn them into diagrams
+                    const codeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
+                    if (codeBlocks.length > 0) {
+                        Array.from(codeBlocks).forEach(function(block, index) {
+                            // Get the content of the code block
+                            const codeContent = block.textContent.trim();
+                            
+                            // Create a container div for the mermaid SVG
+                            const container = document.createElement('div');
+                            container.className = 'mermaid-diagram-' + index;
+                            container.classList.add('mermaid');
+                            container.setAttribute('data-graph-id', 'graph-' + index);
+                            
+                            // Replace the code block with the SVG container
+                            block.parentElement.parentNode.replaceChild(container, block.parentElement);
+                            
+                            // Render the mermaid chart into the new container
+                            mermaid.render(
+                                'graph-' + index,
+                                codeContent,
+                                function(svgGraph) {
+                                    container.innerHTML = svgGraph;
+                                }
+                            );
                         });
                     }
-                }, 300); // Slight delay after KaTeX completion
+                }, 300);
             });
         } else {
             setTimeout(function() {
-               const mermaidBlocks = document.querySelectorAll('pre code.language-mermaid, pre.mermaid, .mermaid');
-               if (mermaidBlocks.length > 0) {
-                   mermaid.run({
-                      nodes: mermaidBlocks,
-                      suppressErrors: true
-                   }).catch(function(error) {
-                      console.error("Mermaid render error:", error);
-                   });
-               }
+                // Same as above for already-loaded content
+                const codeBlocks = document.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
+                if (codeBlocks.length > 0) {
+                    Array.from(codeBlocks).forEach(function(block, index) {
+                        const codeContent = block.textContent.trim();
+                        
+                        const container = document.createElement('div');
+                        container.className = 'mermaid-diagram-' + index;
+                        container.classList.add('mermaid');
+                        container.setAttribute('data-graph-id', 'graph-' + index);
+                        
+                        block.parentElement.parentNode.replaceChild(container, block.parentElement);
+                        
+                        mermaid.render(
+                            'graph-' + index,
+                            codeContent,
+                            function(svgGraph) {
+                                container.innerHTML = svgGraph;
+                            }
+                        );
+                    });
+                } 
             }, 300);
         }
     </script>
