@@ -206,100 +206,26 @@ graph TD;
                 <img id="imagePreview" class="image-preview" src="" alt="Converted image will appear here" style="display: none;">
                 <p id="emptyPreviewMessage">Your converted image will appear here</p>
                 <p><small>Click "Convert to Image" to generate the image preview</small></p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional debug controls -->
+            <div id="debug-panel" class="section">
+                <h3>Debug Controls</h3>
+                <div class="controls">
+                    <button id="view-html-btn" type="button" class="button primary">View Generated HTML</button>
+                </div>
+                
+                <div id="html-preview-container" class="preview-area" style="margin-top: 20px;">
+                    <h4 id="html-preview-title" style="display: none;">Generated HTML Content:</h4>
+                    <pre id="html-preview" style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; white-space: pre-wrap; overflow-x: auto; display: none;"></pre>
+                    <div id="empty-html-message" style="padding: 15px; text-align: center; color: #666;">
+                        Click "View Generated HTML" to see the actual HTML content the server generates
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <footer>
-        <p>InkForge - Powerful Markdown to Image Converter | Made with ❤️</p>
-    </footer>
-    
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const markdownInput = document.getElementById('markdownInput');
-            const themeSelect = document.getElementById('themeSelect');
-            const formatSelect = document.getElementById('formatSelect');
-            const widthInput = document.getElementById('widthInput');
-            const heightInput = document.getElementById('heightInput');
-            const convertBtn = document.getElementById('convertBtn');
-            const imagePreview = document.getElementById('imagePreview');
-            const emptyPreviewMessage = document.getElementById('emptyPreviewMessage');
-            const loadingIndicator = document.getElementById('loadingIndicator');
-            const errorMessage = document.getElementById('errorMessage');
-            const successMessage = document.getElementById('successMessage');
-            
-            // Convert button click handler
-            convertBtn.addEventListener('click', async function() {
-                const markdownContent = markdownInput.value.trim();
-                
-                if (!markdownContent) {
-                    showError('Please enter markdown content to convert');
-                    return;
-                }
-                
-                // Disable button and show loading
-                convertBtn.disabled = true;
-                loadingIndicator.style.display = 'block';
-                errorMessage.style.display = 'none';
-                successMessage.style.display = 'none';
-                
-                try {
-                    // Prepare the request payload
-                    const requestPayload = {
-                        content: markdownContent,
-                        theme: themeSelect.value,
-                        image_format: formatSelect.value,
-                        width: parseInt(widthInput.value),
-                        height: parseInt(heightInput.value),
-                        scale: 2.0
-                    };
-                    
-                    // Send request to the API
-                    const response = await fetch('/api/v1/markdown2image', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(requestPayload)
-                    });
-                    
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({ message: 'Unknown error occurred' }));
-                        throw new Error(errorData.message || `HTTP error! Status: ${response.status}`);
-                    }
-                    
-                    // Get the image blob from the response
-                    const imageBlob = await response.blob();
-                    const imageUrl = URL.createObjectURL(imageBlob);
-                    
-                    // Update the preview
-                    imagePreview.src = imageUrl;
-                    imagePreview.style.display = 'block';
-                    emptyPreviewMessage.style.display = 'none';
-                    
-                    showSuccess(`✅ Image converted successfully! Format: ${formatSelect.value.toUpperCase()}`);
-                } catch (error) {
-                    console.error('Conversion error:', error);
-                    showError(`❌ Conversion failed: ${error.message}`);
-                } finally {
-                    // Re-enable button and hide loading
-                    convertBtn.disabled = false;
-                    loadingIndicator.style.display = 'none';
-                }
-            });
-            
-            function showError(message) {
-                errorMessage.textContent = message;
-                errorMessage.style.display = 'block';
-                successMessage.style.display = 'none';
-            }
-            
-            function showSuccess(message) {
-                successMessage.textContent = message;
-                successMessage.style.display = 'block';
-                errorMessage.style.display = 'none';
-            }
-        });
-    </script>
+    </main>
 </body>
 </html>

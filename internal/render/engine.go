@@ -96,41 +96,11 @@ func (e *RenderEngine) loadTemplates() error {
 func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.MarkdownConversionRequest) (*model.MarkdownConversionResponse, error) {
 	startTime := time.Now()
 
-	// Convert Markdown to HTML
-	htmlContent, err := e.convertMarkdownToHTML(req.Content)
+	// Generate the HTML content
+	finalHTML, err := e.RenderMarkdownAsHTML(req)
 	if err != nil {
-		logs.Errorf("Failed to convert markdown to HTML: %v", err)
-		return nil, fmt.Errorf("failed to convert markdown to HTML: %w", err)
-	}
-
-	// Prepare template data - all features always enabled
-	templateData := map[string]interface{}{
-		"Title":          req.Title,
-		"Content":        template.HTML(htmlContent),
-		"CSS":            req.CSS,
-		"Theme":          req.Theme,
-		"KaTeXEnabled":   true, // Always enabled
-		"MermaidEnabled": true, // Always enabled
-	}
-
-	var buf bytes.Buffer
-	tmpl, exists := e.templates["base"]
-	if !exists {
-		logs.Errorf("Base template not found in cache")
-		return nil, fmt.Errorf("base template not found")
-	}
-
-	logs.Infof("Executing template with title: %s", req.Title)
-	if err := tmpl.Execute(&buf, templateData); err != nil {
-		logs.Errorf("Failed to execute template: %v", err)
-		return nil, fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	// Process custom CSS/JS if provided in request
-	finalHTML := buf.String()
-	if len(req.Headers) > 0 {
-		// Add custom headers if needed - implementation would go here
-		logs.Infof("Applying %d custom headers", len(req.Headers))
+		logs.Errorf("Failed to prepare HTML for image rendering: %v", err)
+		return nil, fmt.Errorf("failed to prepare HTML: %w", err)
 	}
 
 	width := req.Width
@@ -171,6 +141,48 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 
 	logs.Infof("Successfully completed conversion in %v", duration)
 	return response, nil
+}
+
+// RenderMarkdownAsHTML converts Markdown content to raw HTML string (for debugging)
+func (e *RenderEngine) RenderMarkdownAsHTML(req *model.MarkdownConversionRequest) (string, error) {
+	// Convert Markdown to HTML
+	htmlContent, err := e.convertMarkdownToHTML(req.Content)
+	if err != nil {
+		logs.Errorf("Failed to convert markdown to HTML: %v", err)
+		return "", fmt.Errorf("failed to convert markdown to HTML: %w", err)
+	}
+
+	// Prepare template data - all features always enabled
+	templateData := map[string]interface{}{
+		"Title":          req.Title,
+		"Content":        template.HTML(htmlContent),
+		"CSS":            req.CSS,
+		"Theme":          req.Theme,
+		"KaTeXEnabled":   true, // Always enabled
+		"MermaidEnabled": true, // Always enabled
+	}
+
+	var buf bytes.Buffer
+	tmpl, exists := e.templates["base"]
+	if !exists {
+		logs.Errorf("Base template not found in cache")
+		return "", fmt.Errorf("base template not found")
+	}
+
+	logs.Infof("Executing template for HTML generation with title: %s", req.Title)
+	if err := tmpl.Execute(&buf, templateData); err != nil {
+		logs.Errorf("Failed to execute template: %v", err)
+		return "", fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	// Process custom CSS/JS if provided in request
+	finalHTML := buf.String()
+	if len(req.Headers) > 0 {
+		// Add custom headers if needed - implementation would go here
+		logs.Infof("Applying %d custom headers", len(req.Headers))
+	}
+
+	return finalHTML, nil
 }
 
 // convertMarkdownToHTML converts Markdown text to HTML string

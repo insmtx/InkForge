@@ -45,6 +45,24 @@ func MarkdownToImageHandler(ctx *gin.Context) {
 		return
 	}
 
+	// Check if this is for debugging (to return HTML content itself)
+	if req.ImageFormat == "debug_html" {
+		// Handle debug HTML request differently than regular image conversion
+		htmlContent, err := renderEngine.RenderMarkdownAsHTML(&req)
+		if err != nil {
+			logs.Errorf("HTML rendering for debug failed: %v", err)
+			ctx.JSON(http.StatusInternalServerError, model.ErrorResponse(int(model.ConversionFailedCode), err.Error()))
+			return
+		}
+
+		ctx.JSON(http.StatusOK, gin.H{
+			"status":  "success",
+			"html":    htmlContent,
+			"message": "Generated HTML content for debugging",
+		})
+		return
+	}
+
 	// Start timing the conversion
 	startTime := time.Now()
 	logs.Infof("Starting conversion process at %v", startTime)
@@ -58,7 +76,7 @@ func MarkdownToImageHandler(ctx *gin.Context) {
 	}
 
 	duration := time.Since(startTime)
-	logs.Infof("Successfully completed conversion in %v, result size: %d bytes", duration, len(result.ImageData))
+	logs.Infof("Successfully completed conversion in %v, Result size: %d bytes", duration, len(result.ImageData))
 
 	// Set image headers and return the image directly
 	filename := "inkforge-" + startTime.Format("20060102-150405") + "." + result.ImageFormat
