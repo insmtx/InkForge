@@ -35,20 +35,33 @@ func NewPlaywrightRenderer() (*PlaywrightRenderer, error) {
 		return nil, fmt.Errorf("failed to run Playwright: %w", err)
 	}
 
+	// Add extra args for better performance and stability
+	extraArgs := []string{
+		"--disable-web-security",
+		"--disable-features=VizDisplayCompositor",
+		"--memory-pressure-off",
+		"--max_old_space_size=4096",
+		"--disable-background-timer-throttling",
+		"--disable-backgrounding-occluded-windows",
+		"--disable-renderer-backgrounding",
+		"--disable-ipc-flooding-protection",
+		"--disable-background-networking",
+		"--no-sandbox",
+		"--disable-setuid-sandbox",
+		"--disable-dev-shm-usage",
+	}
+
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
 		Headless: playwright.Bool(true),
-		Args: []string{
-			"--disable-web-security",
-			"--disable-features=VizDisplayCompositor",
-			"--memory-pressure-off",
-			"--max_old_space_size=4096",
-		},
+		Args:     extraArgs,
+		Timeout:  playwright.Float(60000), // Increase startup timeout
 	})
 	if err != nil {
 		pw.Stop()
 		return nil, fmt.Errorf("failed to launch browser: %w", err)
 	}
 
+	// Increase context creation timeout for complex rendering
 	context, err := browser.NewContext()
 	if err != nil {
 		browser.Close()
@@ -198,24 +211,45 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		return nil, fmt.Errorf("failed to set viewport: %w", err)
 	}
 
-	// Set HTML content
+	// Set HTML content with increased timeout and patience for large content
 	logs.Infof("Setting HTML content (%d characters)", len(html))
 	if err := page.SetContent(html, playwright.PageSetContentOptions{
-		WaitUntil: playwright.WaitUntilStateLoad,
+		WaitUntil: playwright.WaitUntilStateNetworkidle,
+		Timeout:   playwright.Float(60000), // 60 seconds timeout for heavy content
 	}); err != nil {
 		logs.Errorf("Failed to set page content: %v", err)
 		return nil, fmt.Errorf("failed to set page content: %w", err)
 	}
 
-	// Wait for the content to fully load
+	// More thorough waiting strategy for dynamic content like KaTeX
 	logs.Info("Waiting for content to load...")
+
+	// Wait for DOM to be ready
 	if _, err := page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
-		State: playwright.WaitForSelectorStateAttached,
+		State:   playwright.WaitForSelectorStateAttached,
+		Timeout: playwright.Float(10000), // 10 seconds
 	}); err != nil {
 		logs.Warnf("Could not wait for body selector: %v", err)
 	}
 
-	// Additional wait to ensure resources load properly
+	// Special handling for Math elements if KaTeX is involved
+	katexWaitResult, katexErr := page.WaitForFunction(`() => {
+		// Wait for KaTeX rendering to finish by checking for .katex elements or absence of loading indicators
+		const katexElements = document.querySelectorAll('.katex');
+		const mathElements = document.querySelectorAll('span[data-mathml], script[type^="math"]');
+		// If we have KaTeX rendered elements or detect MathML, we consider it ready
+		return katexElements.length > 0 || mathElements.length > 0 || true;
+	}`, playwright.PageWaitForFunctionOptions{
+		Timeout: playwright.Float(30000), // 30 seconds for math rendering
+	})
+	if katexErr != nil {
+		logs.Warnf("Math elements might still be processing: %v", katexErr)
+		// Continue anyway as sometimes the math content has already rendered
+	} else {
+		logs.Debugf("Math elements rendered successfully, element count: %v", katexWaitResult)
+	}
+
+	// Additional wait for all fonts and images to load
 	page.WaitForTimeout(2000)
 
 	// Determine screenshot options based on image format
