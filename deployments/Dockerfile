@@ -23,6 +23,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-w -s -extldflags '-static'" 
 # Stage 2: Create final runtime image from the base image
 FROM registry.yygu.cn/skills/inkforge:base
 
+COPY ./internal/render/template/base.html /app/template/base.html
+COPY ./demo/ /app/demo/
 # Copy the compiled binary from the builder stage
 COPY --from=builder /workspace/inkforge /app/inkforge
 

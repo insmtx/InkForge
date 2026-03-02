@@ -51,7 +51,7 @@ func NewRenderEngine(options model.RenderingOptions) (*RenderEngine, error) {
 // loadTemplates loads HTML templates needed for rendering
 func (e *RenderEngine) loadTemplates() error {
 	// Read the base template file content
-	templateDir := filepath.Join("internal", "render", "template")
+	templateDir := filepath.Join("template")
 	baseTemplatePath := filepath.Join(templateDir, "base.html")
 
 	content, err := ioutil.ReadFile(baseTemplatePath)
