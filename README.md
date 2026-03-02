@@ -1,178 +1,133 @@
 # InkForge
 
-InkForge is a high-performance Markdown rendering engine designed for developers and AI systems. It converts Markdown content into high-quality image outputs with full support for standard Markdown syntax, LaTeX mathematical expressions (powered by KaTeX), syntax highlighting (powered by Prism), and Mermaid diagrams.
-
-Built on a browser-level rendering pipeline using Playwright, InkForge ensures consistent layout, pixel-perfect output, and cross-platform compatibility.
+A high-performance Markdown to Image conversion service. Convert Markdown documents into beautiful images with syntax highlighting, math equations, and diagrams.
 
 ## Features
 
-- **Markdown to Image** - Convert Markdown to PNG, JPEG, or WebP
-- **LaTeX Math** - Full support for inline and display math equations using KaTeX
-- **Syntax Highlighting** - Code blocks with syntax highlighting (Python, JavaScript, TypeScript, Go, Bash, etc.)
-- **Mermaid Diagrams** - Flowcharts, sequence diagrams, and more
-- **Theme Support** - Light and dark themes
-- **High Resolution** - Configurable scale factor for retina-quality output
-- **API-First** - Easy integration via REST API
+- **Markdown to Image** - Convert to PNG, JPEG, or WebP
+- **LaTeX Math** - `$E=mc^2$`, `$$\int_0^\infty$$`, etc.
+- **Syntax Highlighting** - Python, JavaScript, Go, Bash, and more
+- **Mermaid Diagrams** - Flowcharts, sequence diagrams, etc.
+- **Themes** - Light and dark mode
+- **High DPI** - Retina-quality output
 
 ## Quick Start
 
-### Run with Docker
+### Docker (Recommended)
 
 ```bash
-docker run -d -p 8080:8080 insmtx/inkforge
+# Run container
+docker run -d -p 8080:8080 inkforge
+
+# Open browser
+http://localhost:8080
 ```
 
-### Run from Source
+### From Source
 
 ```bash
-# Install dependencies
-go mod download
-
-# Build
 go build -o inkforge ./cmd/inkforge/
-
-# Run
 ./inkforge
 ```
 
-The server will start at `http://localhost:8080`
+## Usage
 
-## Demo
+### API Endpoint
 
-Open `http://localhost:8080` in your browser to access the interactive demo page.
-
-## API Usage
-
-### Convert Markdown to Image
-
-**Endpoint:** `POST /api/v1/markdown2image`
-
-Returns the image directly with `Content-Type: image/jpeg` (or png/webp based on format).
-
-**Minimal Request (content only):**
-
-```json
-{
-  "content": "# Hello World\n\nThis is **bold** text."
-}
+```
+POST /api/v1/markdown2image
 ```
 
-**Full Request (all optional parameters):**
-
-```json
-{
-  "content": "# Hello World\n\nThis is **bold** and *italic* text.",
-  "title": "My Document",
-  "theme": "light",
-  "image_format": "jpg",
-  "width": 1200,
-  "height": 800,
-  "scale": 2.0,
-  "quality": 90,
-  "css": ""
-}
-```
+Returns the image directly.
 
 ### cURL Examples
 
-**Minimal:**
+**Simplest:**
 ```bash
 curl -X POST http://localhost:8080/api/v1/markdown2image \
   -H "Content-Type: application/json" \
-  -d '{"content": "# Hello\n\n$E=mc^2$"}' \
-  -o output.jpg
+  -d '{"content": "# Hello World"}' \
+  -o image.jpg
 ```
 
-**With options:**
+**With Math + Code + Diagram:**
 ```bash
 curl -X POST http://localhost:8080/api/v1/markdown2image \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "# Hello\n\n```python\nprint(\"hi\")\n```",
+    "content": "# Math Example\n\n$E=mc^2$\n\n$$\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$\n\n## Code\n\n```python\nprint(\"Hello\")\n```\n\n## Diagram\n\n```mermaid\ngraph TD\nA --> B\n```",
     "theme": "dark",
     "width": 800
   }' \
   -o output.png
 ```
 
-### Generate HTML (Debug)
+**Python Example:**
+```python
+import requests
 
-**Endpoint:** `POST /api/v1/generatehtml`
+response = requests.post(
+    "http://localhost:8080/api/v1/markdown2image",
+    json={
+        "content": "# Hello\n\n**Bold** and *italic*",
+        "theme": "light",
+        "width": 600
+    }
+)
 
-Returns the generated HTML for debugging purposes.
+with open("output.jpg", "wb") as f:
+    f.write(response.content)
+```
 
-### Health Check
+## Parameters
 
-**Endpoint:** `GET /api/v1/health`
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| content | (required) | Markdown text |
+| theme | "light" | "light" or "dark" |
+| image_format | "jpg" | "jpg", "png", "webp" |
+| width | 1200 | Image width (pixels) |
+| height | 800 | Image height (pixels) |
+| scale | 2.0 | DPI scale (2.0 = retina) |
+| quality | 90 | JPEG quality (1-100) |
 
-Returns `{"status": "ok"}` when the service is running.
+## Examples
 
-## Request Parameters
+### Math
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| content | string | (required) | Markdown content to convert |
-| title | string | "" | Document title |
-| theme | string | "light" | Theme: "light" or "dark" |
-| image_format | string | "jpg" | Output format: "jpg", "png", "webp" |
-| width | int | 1200 | Image width in pixels |
-| height | int | 800 | Image height in pixels |
-| scale | float | 2.0 | Scale factor for high-DPI (2.0 = 2x) |
-| quality | int | 90 | JPEG/WebP quality (1-100) |
-| css | string | "" | Custom CSS styles |
+```markdown
+Inline: $E=mc^2$
 
-## Supported Markdown Features
+Display: $$\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}$$
+```
 
-### Code Blocks
+### Code
 
 ````markdown
 ```python
-def hello():
-    print("Hello!")
+def fib(n):
+    if n <= 1:
+        return n
+    return fib(n-1) + fib(n-2)
 ```
 ````
 
-Supported languages: Python, JavaScript, TypeScript, Go, Bash, JSON, and more.
-
-### Math Equations
-
-Inline: `$E=mc^2$`
-
-Display:
-```
-$$
-\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}
-$$
-```
-
-### Mermaid Diagrams
+### Diagram
 
 ````markdown
 ```mermaid
-graph TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Process]
-    B -->|No| D[End]
+sequenceDiagram
+    Alice->>John: Hello
+    John-->>Alice: Hi there!
 ```
 ````
 
-### Tables
+## Health Check
 
-````markdown
-| Column 1 | Column 2 |
-|----------|----------|
-| Cell 1   | Cell 2   |
-````
-
-## Architecture
-
-- **Gin** - Web framework
-- **Playwright** - Browser-based rendering
-- **KaTeX** - LaTeX math rendering
-- **Prism** - Syntax highlighting
-- **Mermaid** - Diagram rendering
-- **gomarkdown** - Markdown parsing
+```bash
+curl http://localhost:8080/api/v1/health
+```
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT
