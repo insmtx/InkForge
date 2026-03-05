@@ -99,7 +99,7 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 	// Generate the HTML content
 	finalHTML, err := e.RenderMarkdownAsHTML(req)
 	if err != nil {
-		logs.Errorf("Failed to prepare HTML for image rendering: %v", err)
+		logs.ErrorContextf(ctx, "Failed to prepare HTML for image rendering: %v", err)
 		return nil, fmt.Errorf("failed to prepare HTML: %w", err)
 	}
 
@@ -123,7 +123,7 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 	// Generate the image using Playwright
 	imageData, err := e.renderer.RenderImage(ctx, finalHTML, width, height, scale, imgFormat)
 	if err != nil {
-		logs.Errorf("Failed to render image after preparing parameters: %v", err)
+		logs.ErrorContextf(ctx, "Failed to render image after preparing parameters: %v", err)
 		return nil, fmt.Errorf("failed to render image: %w", err)
 	}
 
@@ -139,7 +139,7 @@ func (e *RenderEngine) RenderMarkdownToImage(ctx context.Context, req *model.Mar
 		Duration: duration.Milliseconds(),
 	}
 
-	logs.Infof("Successfully completed conversion in %v", duration)
+	logs.InfoContextf(ctx, "Successfully completed conversion in %v", duration)
 	return response, nil
 }
 

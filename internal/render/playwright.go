@@ -210,55 +210,55 @@ func (pp *PagePool) releasePage(page playwright.Page) error {
 
 // RenderImage renders the given HTML content to an image using pages from the pool
 func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width, height int, scale float64, imgFormat string) ([]byte, error) {
-	logs.Infof("Starting image rendering process - Width: %d, Height: %d, Scale: %.2f, Format: %s", width, height, scale, imgFormat)
+	logs.InfoContextf(ctx, "Starting image rendering process - Width: %d, Height: %d, Scale: %.2f, Format: %s", width, height, scale, imgFormat)
 
 	// Acquire a page from pool with timeout
 	page, err := r.pagePool.acquirePage(10 * time.Second)
 	if err != nil {
-		logs.Errorf("Failed to acquire page from pool: %v", err)
+		logs.ErrorContextf(ctx, "Failed to acquire page from pool: %v", err)
 		return nil, fmt.Errorf("failed to acquire page: %w", err)
 	}
 
 	defer func() {
 		if closeErr := r.pagePool.releasePage(page); closeErr != nil {
-			logs.Errorf("Warning: Failed to return page to pool: %v", closeErr)
+			logs.ErrorContextf(ctx, "Warning: Failed to return page to pool: %v", closeErr)
 		} else {
-			logs.Debugf("Successfully returned page to pool after rendering")
+			logs.DebugContextf(ctx, "Successfully returned page to pool after rendering")
 		}
 	}()
 
 	// Set viewport size efficiently
-	logs.Infof("Setting viewport size to %dx%d", width, height)
+	logs.InfoContextf(ctx, "Setting viewport size to %dx%d", width, height)
 	if err := page.SetViewportSize(width, height); err != nil {
-		logs.Errorf("Failed to set viewport size: %v", err)
+		logs.ErrorContextf(ctx, "Failed to set viewport size: %v", err)
 		return nil, fmt.Errorf("failed to set viewport: %w", err)
 	}
 
 	// Set HTML content - use domcontentloaded to avoid CDN timeout issues
-	logs.Debugf("Setting HTML content (%d characters)", len(html))
+	logs.DebugContextf(ctx, "Setting HTML content (%d characters)", len(html))
 
 	if err := page.SetContent(html, playwright.PageSetContentOptions{
 		WaitUntil: playwright.WaitUntilStateDomcontentloaded, // Faster, doesn't wait for all CDN
 		Timeout:   playwright.Float(10000),
 	}); err != nil {
-		logs.Warnf("Page content setting error: %v", err)
+		logs.WarnContextf(ctx, "Page content setting error: %v", err)
 	}
 
 	// Wait for body to exist
-	logs.Info("Waiting for body element...")
+	logs.InfoContext(ctx, "Waiting for body element...")
 	_, err = page.WaitForSelector("body", playwright.PageWaitForSelectorOptions{
 		Timeout: playwright.Float(3000),
 	})
 	if err != nil {
-		logs.Warnf("Body element not ready: %v", err)
+		logs.WarnContextf(ctx, "Body element not ready: %v", err)
 	}
 
 	// Wait for scripts to load - give CDN time to load
-	logs.Info("Waiting for CDN scripts to load...")
+	logs.InfoContext(ctx, "Waiting for CDN scripts to load...")
 	page.WaitForTimeout(3000)
 
 	// Wait for all rendering to complete before taking screenshot
-	logs.Info("Waiting for all rendering (KaTeX, syntax highlighting, Mermaid) to complete...")
+	logs.InfoContext(ctx, "Waiting for all rendering (KaTeX, syntax highlighting, Mermaid) to complete...")
 
 	// First check the status
 	allRenderingCompleteResult, renderingErr := page.Evaluate(`() => {
@@ -279,9 +279,9 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 	}`)
 
 	if renderingErr != nil {
-		logs.Warnf("Error checking rendering status: %v", renderingErr)
+		logs.WarnContextf(ctx, "Error checking rendering status: %v", renderingErr)
 	} else {
-		logs.Infof("Initial rendering status: %+v", allRenderingCompleteResult)
+		logs.InfoContextf(ctx, "Initial rendering status: %+v", allRenderingCompleteResult)
 	}
 
 	// Wait for completion marker OR all elements rendered
@@ -311,9 +311,9 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		})
 
 	if waitErr != nil {
-		logs.Warnf("Warning: Rendering wait error: %v", waitErr)
+		logs.WarnContextf(ctx, "Warning: Rendering wait error: %v", waitErr)
 	} else {
-		logs.Info("Rendering complete - all elements detected")
+		logs.InfoContext(ctx, "Rendering complete - all elements detected")
 	}
 
 	// Additional brief wait for any final visual updates
@@ -341,16 +341,16 @@ func (r *PlaywrightRenderer) RenderImage(ctx context.Context, html string, width
 		}
 	}
 
-	logs.Debugf("Taking screenshot with options - Type: %s", screenshotOptions.Type)
+	logs.DebugContextf(ctx, "Taking screenshot with options - Type: %s", screenshotOptions.Type)
 
 	// Take the screenshot
 	screenshot, err := page.Screenshot(screenshotOptions)
 	if err != nil {
-		logs.Errorf("Failed to take screenshot: %v", err)
+		logs.ErrorContextf(ctx, "Failed to take screenshot: %v", err)
 		return nil, fmt.Errorf("failed to take screenshot: %w", err)
 	}
 
-	logs.Infof("Successfully captured screenshot, size: %d bytes", len(screenshot))
+	logs.InfoContextf(ctx, "Successfully captured screenshot, size: %d bytes", len(screenshot))
 	return screenshot, nil
 }
 

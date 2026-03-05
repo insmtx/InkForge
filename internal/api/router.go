@@ -7,6 +7,7 @@ import (
 	"github.com/ygpkg/yg-go/logs"
 
 	"github.com/insmtx/InkForge/internal/model"
+	"github.com/ygpkg/yg-go/apis/runtime/middleware"
 )
 
 func SetRouter(eng *gin.Engine) {
@@ -15,7 +16,7 @@ func SetRouter(eng *gin.Engine) {
 		c.File("./demo/index.html")
 	})
 
-	v1 := eng.Group("/api/v1")
+	v1 := eng.Group("/api/v1", middleware.Logger())
 	{
 		v1.POST("/markdown2image", MarkdownToImageHandler)
 		v1.GET("/health", HealthCheckHandler)
@@ -39,7 +40,7 @@ func GenerateHTMLHandler(ctx *gin.Context) {
 
 	// Validate the request
 	if err := renderEngine.ValidateRequest(&req); err != nil {
-		logs.Errorf("Request validation failed: %v", err)
+		logs.ErrorContextf(ctx, "Request validation failed: %v", err)
 		ctx.JSON(http.StatusBadRequest, model.ErrorResponse(int(model.ValidationFailedCode), err.Error()))
 		return
 	}
@@ -47,7 +48,7 @@ func GenerateHTMLHandler(ctx *gin.Context) {
 	// Generate HTML content using the rendering engine
 	htmlContent, err := renderEngine.RenderMarkdownAsHTML(&req)
 	if err != nil {
-		logs.Errorf("HTML rendering failed: %v", err)
+		logs.ErrorContextf(ctx, "HTML rendering failed: %v", err)
 		ctx.JSON(http.StatusInternalServerError, model.ErrorResponse(int(model.ConversionFailedCode), err.Error()))
 		return
 	}
